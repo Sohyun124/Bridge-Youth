@@ -407,7 +407,7 @@ function hasSavedProfile() {
   return age >= 13 && age <= 99 && Boolean(state.profile?.region);
 }
 
-function compareTransport() {
+async function compareTransport() {
   const costRange = document.getElementById("costRange").value;
   const directCost = Number(document.getElementById("monthlyTransitCost").value || 0);
   const mobilityArea = document.getElementById("mobilityArea").value;
@@ -432,6 +432,15 @@ function compareTransport() {
   if (costRange === "direct" && !directCost) {
     showToast("월 버스·지하철 교통비를 입력하거나 범위를 선택해 주세요.");
     return;
+  }
+
+  if (!benefits.length) {
+    policyDataStatus = "loading";
+    await loadPolicies();
+    if (!benefits.length) {
+      policyDataStatus = "unavailable";
+      showToast("\uacf5\uc2dd \uc815\ucc45 \ub370\uc774\ud130\ub97c \ub2e4\uc2dc \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \ucd94\ucc9c \uc5c6\uc774 \uacf5\uc2dd \ud655\uc778 \ud544\uc694\ub85c \uc548\ub0b4\ud574\uc694.");
+    }
   }
 
   state.profile = {
