@@ -587,6 +587,13 @@ function calculateBenefit(benefit) {
   else if (ageOk && regionOk && districtOk && estimatedSaving > 0) confidence = "높음";
   else if (ageOk && regionOk) confidence = "확인 필요";
 
+  const enrollment = policyEnrollmentState(benefit);
+  if (enrollment === "closed") {
+    estimatedSaving = 0;
+    confidence = "접수 종료";
+    formula = "접수 종료 · 다음 모집 일정은 공식 기관에서 확인 필요";
+  }
+
   const reasons = [
     ageOk ? "나이 조건 일치" : "나이 조건 확인 필요",
     regionOk ? "지역 조건 일치" : "지역 조건 확인 필요",
@@ -598,6 +605,7 @@ function calculateBenefit(benefit) {
     modes.includes("gtx") ? "GTX 이용 고려" : null,
     usesDdareungi ? "따릉이 이용 고려" : null,
     usesLongDistance ? "장거리 이동 고려" : null,
+    enrollment === "closed" ? "접수 종료 · 다음 모집 공식 확인 필요" : null,
   ];
 
   return {
@@ -617,7 +625,7 @@ function getComparedBenefits() {
     .sort((a, b) => b.estimatedSaving - a.estimatedSaving);
 }
 
-function renderHome() {
+function renderTransportCardHome() {
   if (!state.comparedAt || !hasSavedProfile()) {
     document.getElementById("profileSummary").textContent = "아직 비교한 내역이 없어요.";
     document.getElementById("roadmap").innerHTML = `
@@ -700,7 +708,7 @@ function renderHome() {
   );
 }
 
-function openDetail(id) {
+function openTransportDetail(id) {
   const benefit = getComparedBenefits().find((item) => item.id === id);
   if (!benefit) {
     showToast("현재 공식 확인 가능한 정책 정보를 찾지 못했어요.");
@@ -754,7 +762,7 @@ function openDetail(id) {
   startDetailReading(id);
 }
 
-function openApplyLink(id) {
+function openTransportApplyLink(id) {
   const benefit = benefits.find((item) => item.id === id);
   if (!benefit) return;
   const targetUrl = benefit.applicationUrl || benefit.sourceUrl;
@@ -785,7 +793,7 @@ function submitFeedback(id, type) {
   showToast("피드백을 기록했어요. 정책 안내를 개선하는 데 활용돼요.");
 }
 
-function renderSaved() {
+function renderTransportSaved() {
   const compared = getComparedBenefits();
   const savedBenefits = compared.filter((benefit) => state.saved.includes(benefit.id));
   document.getElementById("savedList").innerHTML =
@@ -830,7 +838,10 @@ function conversionDetail(current, previous) {
 }
 
 function buildInterestSummary() {
-  const benefitCategories = new Map(benefits.map((benefit) => [benefit.id, "교통비"]));
+  const benefitCategories = new Map([
+    ...benefits.map((benefit) => [benefit.id, "교통비"]),
+    ...savingPolicies.map((benefit) => [benefit.id, "자산형성"]),
+  ]);
   activeCategoryPolicies.forEach((benefit) => {
     const category =
       benefit.category === "housing" ? "주거 지원" :
@@ -913,7 +924,7 @@ function renderLogs() {
     if (!benefitSignals[benefitId]) {
       benefitSignals[benefitId] = {
         benefitId,
-        title: benefits.find((benefit) => benefit.id === benefitId)?.title || "알 수 없는 혜택",
+        title: [...benefits, ...savingPolicies].find((benefit) => benefit.id === benefitId)?.title || "알 수 없는 혜택",
         views: 0,
         feedbacks: 0,
         backs: 0,
@@ -1091,3 +1102,224 @@ loadPolicies();
 
 
 
+
+// Saving comparison reads the same reviewed official-policy API as transport.
+let savingPolicies = [];
+let savingComparison = null;
+
+function escapeMarkup(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]);
+}
+
+function policyEnrollmentState(benefit) {
+  const period = benefit.applicationPeriod || {};
+  if (period.kind === "closed") return "closed";
+  if (period.endsAt && new Date(period.endsAt).getTime() < Date.now()) return "closed";
+  if (period.kind === "scheduled") return "scheduled";
+  if (period.kind === "ongoing") return "ongoing";
+  return "unknown";
+}
+
+function getBenefitValueLabel(benefit) {
+  if (policyEnrollmentState(benefit) === "closed") return "접수 종료 · 다음 모집 공식 확인 필요";
+  if (benefit.type === "long-distance") return `운임의 ${benefit.discountRange} 할인 가능성`;
+  return `${formatWon(benefit.estimatedSaving)} 예상 이득`;
+}
+
+function applicationPeriodLine(benefit) {
+  const period = benefit.applicationPeriod || {};
+  const enrollment = policyEnrollmentState(benefit);
+  if (enrollment === "closed") return "접수 상태: 접수 종료 · 다음 모집 공식 확인 필요";
+  if (enrollment === "scheduled") return `가입 일정: ${period.label || "다음 모집 공식 확인 필요"}`;
+  if (enrollment === "ongoing") return `접수 기간: ${period.label || "상시 또는 진행 중"}`;
+  return "접수 기간: 현재 공식 확인 필요";
+}
+
+function getOfficialLinkLabel(benefit) {
+  const enrollment = policyEnrollmentState(benefit);
+  if (enrollment === "closed") return "공식 안내 보기";
+  if (enrollment === "scheduled") return "공식 가입 일정 보기";
+  return benefit.applicationUrl ? "공식 신청/가입" : "공식 안내 보기";
+}
+
+async function loadSavingPolicies() {
+  try {
+    const response = await fetch("/api/policies?category=saving");
+    if (!response.ok) throw new Error("Policy database is unavailable");
+    const { policies } = await response.json();
+    savingPolicies = policies;
+    return policies;
+  } catch {
+    savingPolicies = [];
+    return [];
+  }
+}
+
+function selectCategory(category) {
+  track("category_select", null, "category", { category });
+  if (category === "transport") return show("transport");
+  if (category === "saving") return show("saving");
+  activeCategory = category;
+  show("categoryCompare");
+  renderCategoryComparison();
+}
+
+function getSavingProfileFromForm() {
+  const age = Number(document.getElementById("savingAge").value);
+  const monthlyDeposit = Number(document.getElementById("savingMonthlyDeposit").value);
+  const personalIncome = Number(document.getElementById("savingPersonalIncome").value);
+  if (!Number.isFinite(age) || age < 0 || age > 100) throw new Error("나이를 확인해주세요.");
+  if (!Number.isFinite(monthlyDeposit) || monthlyDeposit < 1000) throw new Error("월 저축 가능 금액을 1,000원 이상 입력해주세요.");
+  return {
+    age,
+    employment: document.getElementById("savingEmployment").value,
+    personalIncome: Number.isFinite(personalIncome) && personalIncome > 0 ? personalIncome : null,
+    householdIncome: document.getElementById("savingHouseholdIncome").value,
+    monthlyDeposit,
+  };
+}
+
+function getSavingAnalyticsProfile(profile) {
+  return {
+    ageGroup: profile.age <= 22 ? "19~22세" : profile.age <= 27 ? "23~27세" : profile.age <= 34 ? "28~34세" : "35세 이상",
+    employment: profile.employment,
+    personalIncomeEntered: Boolean(profile.personalIncome),
+    personalIncomeBand: !profile.personalIncome ? "미입력" : profile.personalIncome <= 75000000 ? "안내 상한 이하 입력" : "안내 상한 초과 입력",
+    householdIncomeKnown: profile.householdIncome === "confirmable",
+    monthlyDepositBand: profile.monthlyDeposit <= 100000 ? "10만원 이하" : profile.monthlyDeposit <= 300000 ? "10~30만원" : "30~50만원",
+  };
+}
+
+function calculateSavingBenefit(benefit, profile) {
+  const ageOk = profile.age >= Number(benefit.minAge) && profile.age <= Number(benefit.maxAge);
+  const requestedDeposit = profile.monthlyDeposit;
+  const monthlyDeposit = Math.min(requestedDeposit, Number(benefit.monthlyLimit || requestedDeposit));
+  const termMonths = Number(benefit.termMonths || 0);
+  const cap = Number(benefit.maxMonthlyGovernmentContribution || Number.MAX_SAFE_INTEGER);
+  const generalMonthly = Math.min(Math.floor(monthlyDeposit * Number(benefit.matchRateGeneral || 0)), cap);
+  const preferredMonthly = Math.min(Math.floor(monthlyDeposit * Number(benefit.matchRatePreferred || 0)), cap);
+  const incomeStatus = profile.personalIncome === null
+    ? "개인소득을 입력하지 않아 공식 소득 요건 확인 필요"
+    : profile.personalIncome <= 75000000
+      ? "입력한 개인 총급여는 안내된 상한 안이지만 공식 심사 필요"
+      : "입력한 개인 총급여는 안내된 상한을 초과할 가능성이 있어 공식 확인 필요";
+  const employmentStatus = profile.employment === "small_business"
+    ? "우대형 중소기업 요건은 재직·신규취업 기준을 공식 확인 필요"
+    : "우대형은 중소기업 재직 또는 신규취업 요건을 공식 확인 필요";
+  return {
+    ...benefit,
+    ageOk,
+    monthlyDeposit,
+    requestedDeposit,
+    termMonths,
+    governmentContributionMin: generalMonthly * termMonths,
+    governmentContributionMax: preferredMonthly * termMonths,
+    incomeStatus,
+    employmentStatus,
+    householdStatus: profile.householdIncome === "confirmable" ? "가구 소득 기준은 공식 화면에서 확인 필요" : "가구 소득 기준과 가구원 동의 확인 필요",
+    enrollment: policyEnrollmentState(benefit),
+  };
+}
+
+function savingValueLabel(benefit) {
+  if (benefit.enrollment === "closed") return "접수 종료 · 다음 모집 공식 확인 필요";
+  if (!benefit.ageOk) return "나이 조건 확인 필요";
+  return `${benefit.termMonths}개월 정부기여금 예상 ${formatWon(benefit.governmentContributionMin)}~${formatWon(benefit.governmentContributionMax)}`;
+}
+
+function savingConditionsText(benefit) {
+  const limitText = benefit.requestedDeposit > benefit.monthlyLimit
+    ? `입력 금액 중 월 ${formatWon(benefit.monthlyLimit)}까지만 계산`
+    : `월 ${formatWon(benefit.monthlyDeposit)} 납입 기준`;
+  return `${limitText} · 은행 이자 제외 · ${benefit.incomeStatus}`;
+}
+
+async function compareSaving() {
+  let profile;
+  try {
+    profile = getSavingProfileFromForm();
+  } catch (error) {
+    showToast(error.message);
+    return;
+  }
+  const policies = await loadSavingPolicies();
+  savingComparison = { profile, comparedAt: Date.now(), policies: policies.map((policy) => calculateSavingBenefit(policy, profile)) };
+  flowState.comparisonId = `saving_${crypto.randomUUID()}`;
+  sessionStorage.setItem("bridge-comparison-id", flowState.comparisonId);
+  track("saving_compare_submit", null, "input", getSavingAnalyticsProfile(profile));
+  renderSavingResults();
+  show("savingResults");
+}
+
+function renderSavingResults() {
+  const target = document.getElementById("savingResultsContent");
+  if (!savingComparison) {
+    target.innerHTML = `<div class="empty-state"><p>입력한 조건 기준의 공식 자산형성 비교 결과가 여기에 표시됩니다.</p></div>`;
+    return;
+  }
+  const { profile, policies } = savingComparison;
+  if (!policies.length) {
+    target.innerHTML = `<div class="notice"><strong>현재 공식 확인 필요</strong><p>출처·기준일·갱신일을 확인한 활성 자산형성 정책이 없어서 추천하지 않습니다.</p></div>`;
+    return;
+  }
+  const rows = policies.map((benefit) => `
+    <tr>
+      <th scope="row"><strong>${escapeMarkup(benefit.title)}</strong><small>${escapeMarkup(benefit.provider)}</small></th>
+      <td><strong>${escapeMarkup(savingValueLabel(benefit))}</strong><small>${escapeMarkup(savingConditionsText(benefit))}</small></td>
+      <td>${escapeMarkup(benefit.ageOk ? "나이 입력값은 안내 범위 안" : "나이 조건 확인 필요")}<small>${escapeMarkup(benefit.employmentStatus)}</small></td>
+      <td>${escapeMarkup(applicationPeriodLine(benefit))}<small>${escapeMarkup(sourceMetaLine(benefit))}</small></td>
+      <td><div class="table-actions"><button data-action="open-detail" data-benefit-id="${escapeMarkup(benefit.id)}">상세</button><button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button></div></td>
+    </tr>`).join("");
+  target.innerHTML = `
+    <div class="notice saving-notice"><strong>목적이 다른 상품은 순위를 매기지 않습니다.</strong><p>정부기여금은 일반형·우대형 요건에 따라 달라질 수 있어 범위로만 보이며, 은행 이자와 실제 가입 가능 여부는 공식 안내에서 확인해야 합니다.</p></div>
+    <p class="comparison-summary">${profile.age}세 · 월 저축 가능 금액 ${formatWon(profile.monthlyDeposit)} · 가구 소득 ${profile.householdIncome === "confirmable" ? "공식 확인 가능" : "확인 필요"}</p>
+    <div class="comparison-table-wrap"><table class="comparison-table"><thead><tr><th>공식 상품</th><th>예상 만기 정부기여금</th><th>확인할 조건</th><th>접수·출처</th><th>동작</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="notice">AI 설명은 참고용이며, 실제 가입 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p>`;
+  track("saving_results_viewed", null, "results", { resultCount: policies.length });
+  policies.forEach((benefit) => track("comparison_result_view", benefit.id, "saving_compare", { category: "saving", enrollment: benefit.enrollment, ageInRange: benefit.ageOk }));
+}
+
+function renderHome() {
+  if (!state.comparedAt || !hasSavedProfile()) return renderTransportCardHome();
+  const profile = state.profile;
+  const compared = getComparedBenefits();
+  if (!compared.length) return renderTransportCardHome();
+  const best = compared.find((benefit) => benefit.estimatedSaving > 0 && benefit.confidence !== "확인 필요" && policyEnrollmentState(benefit) !== "closed") || null;
+  document.getElementById("profileSummary").textContent = `${profile.age}세 · ${profile.region} · 월 ${formatWon(profile.monthlyTransitCost)} · 입력한 조건 기준`;
+  document.getElementById("roadmap").innerHTML = best ? `<h3>먼저 확인할 정책</h3><p><strong>${escapeMarkup(best.title)}</strong> — ${escapeMarkup(getBenefitValueLabel(best))}</p><p class="muted">정확한 자격과 중복 수혜 여부는 공식 공고를 확인해야 합니다.</p>` : `<h3>현재 접수 가능한 공식 정책 없음</h3><p>접수 종료 정책은 비교 표에서 공식 안내만 제공합니다. 다음 모집 일정은 공식 기관에서 확인하세요.</p>`;
+  const rows = compared.map((benefit) => `<tr><th scope="row">${escapeMarkup(benefit.title)}<small>${escapeMarkup(benefit.provider)}</small></th><td><strong>${escapeMarkup(getBenefitValueLabel(benefit))}</strong><small>${escapeMarkup(benefit.formula)}</small></td><td>${escapeMarkup(benefit.reason)}</td><td><small>${escapeMarkup(sourceMetaLine(benefit))}</small><small>${escapeMarkup(applicationPeriodLine(benefit))}</small></td><td><div class="table-actions"><button data-action="open-detail" data-benefit-id="${escapeMarkup(benefit.id)}">상세</button><button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button></div></td></tr>`).join("");
+  document.getElementById("policyList").innerHTML = `<div class="comparison-table-wrap"><table class="comparison-table"><thead><tr><th>공식 정책</th><th>예상 이득</th><th>추천 이유</th><th>출처·접수</th><th>동작</th></tr></thead><tbody>${rows}</tbody></table></div><p class="notice">AI 설명은 참고용이며, 실제 신청 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p>`;
+  track("comparison_results_viewed", null, "results", { resultCount: compared.length, topBenefitId: best?.id || null });
+}
+
+function openSavingDetail(benefit) {
+  const documents = Array.isArray(benefit.documents) && benefit.documents.length ? benefit.documents : ["공식 기관 확인 필요"];
+  track("benefit_card_click", benefit.id, "saving_compare", { category: "saving" });
+  track("benefit_detail_view", benefit.id, "detail", { category: "saving" });
+  document.getElementById("policyDetail").innerHTML = `<div class="detail-box"><span class="badge">자산형성 · 공식 데이터</span><h2>${escapeMarkup(benefit.title)}</h2><p class="saving">${escapeMarkup(savingValueLabel(benefit))}</p><p>${escapeMarkup(savingConditionsText(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p></div><div class="card" data-reading-section="추천 이유"><h3>공식 안내를 쉬운 말로</h3><p>${escapeMarkup(benefit.summary)}</p><p><b>비교 기준</b>: ${escapeMarkup(benefit.termMonths)}개월 납입과 공식 정부기여금만 계산했습니다. 은행 이자는 포함하지 않았어요.</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="notice">AI 설명은 참고용이며, 실제 가입 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p></div><div class="card" data-reading-section="주의사항·준비 항목"><h3>중도해지·중복 가입 전 확인</h3><p>${escapeMarkup(benefit.caution)}</p><p>${escapeMarkup(benefit.duplicateCondition || "중복 수혜 조건은 공식 확인 필요")}</p><ul>${documents.map((doc) => `<li>${escapeMarkup(doc)}</li>`).join("")}</ul></div><div class="card" data-reading-section="피드백·공식 링크"><h3>공식 안내와 피드백</h3><div class="feedback-grid"><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="calculation">예상 이득 계산이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="duplicate">중복 가입 조건이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="condition">내 조건에 맞는지 모르겠어요</button></div><div class="actions"><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button><button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button></div></div>`;
+  show("detail");
+  startDetailReading(benefit.id);
+}
+
+function openDetail(id) {
+  const saving = (savingComparison?.policies || savingPolicies.map((policy) => calculateSavingBenefit(policy, savingComparison?.profile || { age: 0, monthlyDeposit: 0, personalIncome: null, employment: "unknown", householdIncome: "unknown" }))).find((benefit) => benefit.id === id);
+  if (saving) return openSavingDetail(saving);
+  return openTransportDetail(id);
+}
+
+function openApplyLink(id) {
+  const saving = savingPolicies.find((benefit) => benefit.id === id);
+  if (!saving) return openTransportApplyLink(id);
+  const targetUrl = saving.applicationUrl || saving.sourceUrl;
+  track("apply_link_click", id, "apply", { category: "saving", enrollment: policyEnrollmentState(saving) });
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
+}
+
+function renderSaved() {
+  const transport = getComparedBenefits();
+  const saving = savingComparison?.policies || savingPolicies;
+  const savedBenefits = [...transport, ...saving].filter((benefit, index, list) => state.saved.includes(benefit.id) && list.findIndex((item) => item.id === benefit.id) === index);
+  document.getElementById("savedList").innerHTML = savedBenefits.length ? savedBenefits.map((benefit) => `<article class="card"><span class="badge">저장한 정책</span><h3>${escapeMarkup(benefit.title)}</h3><p class="saving">${escapeMarkup(benefit.category === "saving" ? (benefit.governmentContributionMin === undefined ? "공식 상세에서 다시 계산" : savingValueLabel(benefit)) : getBenefitValueLabel(benefit))}</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p><div class="actions"><button data-action="open-detail" data-benefit-id="${escapeMarkup(benefit.id)}">상세</button><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button></div></article>`).join("") : `<p class="muted">저장한 혜택이 없습니다.</p>`;
+}
+
+document.getElementById("compareSaving").addEventListener("click", compareSaving);

@@ -8,39 +8,23 @@
   </head>
   <body>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <header class="global-nav"><div class="global-nav-inner"><span class="global-brand">Bridge Youth</span><nav class="global-links"><button data-view="categories">혜택 비교</button><button data-view="saved">저장한 혜택</button><button data-view="logs">분석</button><button data-view="privacy">개인정보</button></nav></div></header><div class="sub-nav"><div class="sub-nav-inner"><div><p class="eyebrow">공식 정책 기준</p><h1>Bridge Youth</h1></div><div class="sub-nav-actions"><button class="text-link" data-view="profile">내 정보</button><button class="primary" data-view="categories">비교 시작</button></div></div></div>
+    <header class="notion-nav"><div class="notion-nav-inner"><button class="wordmark" data-view="categories">Bridge Youth <span>공식 정책 비교</span></button><nav class="notion-links" aria-label="주요 메뉴"><button data-view="categories">혜택 비교</button><button data-view="saved">저장한 혜택</button><button data-view="logs">분석</button><button data-view="privacy">개인정보</button></nav><button class="primary nav-start" data-view="categories">비교 시작</button></div></header>
 
     <main>
       <section id="categories" class="view active">
         <div class="section-head">
           <div>
-            <h2>어떤 분야를 비교할까요?</h2>
-            <p class="lead">비슷한 청년 복지 혜택 중 내 조건에서 더 이득인 선택지를 비교해볼 수 있어요.</p>
+            <p class="eyebrow">공식 출처 · 기준일 · 갱신일을 확인한 정책만</p>
+            <h2>나에게 맞는 청년 혜택을 비교하세요.</h2>
+            <p class="lead">교통비와 자산형성 중 필요한 목적을 고르면, 입력한 조건 기준 예상 이득과 공식 안내를 함께 보여드려요.</p>
           </div>
         </div>
         <p class="muted activity-notice">서비스 개선과 정책 안내 개선을 위해 혜택 비교, 설명 열람, 화면 이동 흐름을 익명으로 기록합니다. 이름, 연락처, 실제 신청 내용은 기록하지 않습니다.</p>
-        <div class="category-grid">
-          <button class="category-card active-category" data-category="transport">
-            <span class="badge">MVP</span>
-            <h3>교통비</h3>
-            <p>대중교통 이용 패턴을 기준으로 K-패스, 정액권, 지역 지원을 비교해요.</p>
-          </button>
-          <button class="category-card" data-category="housing">
-            <span class="badge">확장 예정</span>
-            <h3>주거 지원</h3>
-            <p>월세 지원, 보증금 대출, 지자체 주거 지원을 비교할 수 있게 확장해요.</p>
-          </button>
-          <button class="category-card" data-category="education">
-            <span class="badge">확장 예정</span>
-            <h3>교육·취업</h3>
-            <p>자격증, 면접비, 교육비 지원처럼 준비 비용을 줄이는 혜택을 비교해요.</p>
-          </button>
-          <button class="category-card" data-category="saving">
-            <span class="badge">확장 예정</span>
-            <h3>자산형성</h3>
-            <p>청년도약계좌, 저축계좌, 청약 관련 혜택을 비교할 수 있게 확장해요.</p>
-          </button>
+        <div class="service-grid">
+          <button class="service-panel" data-category="transport"><span class="badge">공식 데이터 연결</span><h3>교통비</h3><p>대중교통 이용 패턴을 기준으로 K-패스, 정액권, 지역 지원을 비교해요.</p><strong>교통비 비교 시작 →</strong></button>
+          <button class="service-panel" data-category="saving"><span class="badge">공식 데이터 연결</span><h3>자산형성</h3><p>월 저축 가능 금액을 기준으로 정부기여금과 가입 전 확인할 조건을 비교해요.</p><strong>자산형성 비교 시작 →</strong></button>
         </div>
+        <div class="secondary-services"><span>다음 비교 분야</span><span>주거 지원 · 교육·취업 지원은 공식 데이터 검토 후 제공됩니다.</span></div>
       </section>
 
       <section id="profile" class="view">
@@ -176,6 +160,28 @@
         <button class="primary" id="compareTransport">혜택 비교하기</button>
       </section>
 
+      <section id="saving" class="view">
+        <button class="back-button" type="button" data-action="back" data-fallback="categories" aria-label="이전 화면으로 돌아가기">← 뒤로가기</button>
+        <p class="eyebrow">자산형성 비교</p>
+        <h2>월 저축 계획으로 공식 상품을 비교하세요.</h2>
+        <p class="lead">은행 이자나 가입 가능 여부를 임의로 계산하지 않습니다. 공식 정부기여금 안내만 기준으로 예상 범위를 보여드려요.</p>
+        <div class="form-grid">
+          <label>나이 <input id="savingAge" type="number" min="0" max="100" value="22" inputmode="numeric" /></label>
+          <label>현재 상태<select id="savingEmployment"><option value="student">재학·구직·기타</option><option value="employed">재직 중</option><option value="small_business">중소기업 재직 또는 신규취업</option><option value="unknown">잘 모르겠어요</option></select></label>
+          <label>직전 과세기간 개인 총급여(연, 원)<input id="savingPersonalIncome" type="number" min="0" placeholder="예: 36000000" inputmode="numeric" /></label>
+          <label>가구 소득 기준을 확인할 수 있나요?<select id="savingHouseholdIncome"><option value="unknown">잘 모르겠어요</option><option value="confirmable">공식 기준에서 확인할 수 있어요</option></select></label>
+          <label>월 저축 가능 금액(원)<input id="savingMonthlyDeposit" type="number" min="1000" max="500000" value="500000" inputmode="numeric" /></label>
+        </div>
+        <div class="helper-box"><h3>꼭 알아두세요</h3><p class="muted">입력한 소득은 이 브라우저에서 비교할 때만 사용하며 익명 로그에는 원본 금액을 저장하지 않습니다. 가구 소득·중소기업 요건·중복 가입은 공식 심사가 필요해요.</p></div>
+        <button class="primary" id="compareSaving">자산형성 비교하기</button>
+      </section>
+
+      <section id="savingResults" class="view">
+        <button class="back-button" type="button" data-action="back" data-fallback="saving" aria-label="이전 화면으로 돌아가기">← 입력 수정</button>
+        <p class="eyebrow">입력한 조건 기준 · 공식 정부기여금만 계산</p>
+        <h2>자산형성 비교 결과</h2>
+        <div id="savingResultsContent"></div>
+      </section>
       <section id="home" class="view">
         <button class="back-button" type="button" data-action="back" data-fallback="transport" aria-label="이전 화면으로 돌아가기">← 입력 수정</button>
         <div class="section-head">
@@ -186,7 +192,7 @@
         <div class="notice">
           공식 출처 URL·기준일·갱신일이 확인된 활성 정책만 표시합니다. 최신성 또는 자격 조건을 확인할 수 없으면 추천하지 않으며, 신청 전에는 반드시 공식 링크를 확인하세요.
         </div>
-        <div class="cards" id="policyList"></div>
+        <div id="policyList"></div>
       </section>
 
       <section id="categoryCompare" class="view">
@@ -276,7 +282,7 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260719-4"></script>
+    <script src="./app.js?v=20260719-5"></script>
   </body>
 </html>
 

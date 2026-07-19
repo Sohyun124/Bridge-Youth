@@ -1,4 +1,4 @@
-﻿function databaseConfigured() {
+function databaseConfigured() {
   return Boolean(process.env.SUPABASE_URL && getSupabaseServerCredential());
 }
 
@@ -15,8 +15,8 @@ async function supabaseRequest(path, options = {}) {
     headers: databaseHeaders(options.headers),
   });
   if (!response.ok) throw new Error(`Database request failed: ${response.status}`);
-  if (response.status === 204) return null;
-  return response.json();
+  const body = await response.text();
+  return body ? JSON.parse(body) : null;
 }
 async function checkDatabaseReadiness() {
   if (!databaseConfigured()) {
@@ -76,7 +76,7 @@ function isPolicyStructurallyUsable(row) {
   if (!Array.isArray(row.required_documents)) return false;
   const applicationPeriod = row.application_period || {};
   if (!applicationPeriod || typeof applicationPeriod !== "object" || Array.isArray(applicationPeriod)) return false;
-  if (!['ongoing', 'scheduled'].includes(applicationPeriod.kind)) return false;
+  if (!['ongoing', 'scheduled', 'closed'].includes(applicationPeriod.kind)) return false;
   const eligibility = row.eligibility || {};
   const benefit = row.benefit || {};
   if (row.category === "transport") {
@@ -98,18 +98,29 @@ function isPolicyStructurallyUsable(row) {
 async function listActivePolicies(category) {
   const query = new URLSearchParams({
     select: "id,official_title,category,provider,region,source_url,application_url,source_published_at,source_checked_at,expires_at,application_period,eligibility,benefit,easy_summary,caution,required_documents",
-    status: "eq.active",
+    status: "in.(active,expired)",
     order: "source_checked_at.desc",
   });
   if (category) query.set("category", `eq.${category}`);
   const rows = await supabaseRequest(`policies?${query.toString()}`);
   const now = Date.now();
   const staleCutoff = now - Number(process.env.POLICY_STALE_DAYS || 180) * 24 * 60 * 60 * 1000;
-  return rows
+  const enrollmentOrder = { ongoing: 0, scheduled: 1, closed: 2 };
+  const candidates = rows
     .filter((row) => /^https:\/\//i.test(row.source_url || ""))
     .filter((row) => row.source_checked_at && new Date(row.source_checked_at).getTime() >= staleCutoff)
-    .filter((row) => !row.expires_at || new Date(row.expires_at).getTime() >= now)
+    .filter((row) => !row.expires_at || new Date(row.expires_at).getTime() >= now || row.application_period?.kind === "closed")
     .filter(isPolicyStructurallyUsable)
+    .sort((left, right) => (enrollmentOrder[left.application_period?.kind] ?? 9) - (enrollmentOrder[right.application_period?.kind] ?? 9));
+
+  const seenProducts = new Set();
+  return candidates
+    .filter((row) => {
+      const key = `${row.category}::${row.official_title}::${row.region}`;
+      if (seenProducts.has(key)) return false;
+      seenProducts.add(key);
+      return true;
+    })
     .map(policyRowToClientPolicy);
 }
 
