@@ -1,5 +1,9 @@
 // Policies are populated only by the reviewed production policy API.
 let benefits = [];
+// These are read by anonymous-log rendering during initial startup, so they
+// must be initialized before the first renderLogs() call.
+let savingPolicies = [];
+let savingComparison = null;
 
 const categoryBenefits = {
   housing: {
@@ -1128,8 +1132,6 @@ loadPolicies();
 
 
 // Saving comparison reads the same reviewed official-policy API as transport.
-let savingPolicies = [];
-let savingComparison = null;
 
 function escapeMarkup(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[character]);
