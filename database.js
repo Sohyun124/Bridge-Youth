@@ -1,13 +1,11 @@
 ﻿function databaseConfigured() {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(process.env.SUPABASE_URL && getSupabaseServerCredential());
 }
 
+const { getSupabaseServerCredential, supabaseServerHeaders } = require("./supabase-credentials");
+
 function databaseHeaders(extra = {}) {
-  return {
-    apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-    ...extra,
-  };
+  return supabaseServerHeaders(extra);
 }
 
 async function supabaseRequest(path, options = {}) {
