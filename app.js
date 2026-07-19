@@ -1346,10 +1346,14 @@ function renderHome() {
 
 function openSavingDetail(benefit) {
   const documents = Array.isArray(benefit.documents) && benefit.documents.length ? benefit.documents : ["공식 기관 확인 필요"];
-  const hasCalculatedEstimate = Number.isFinite(benefit.governmentContributionMin) && Number.isFinite(benefit.governmentContributionMax);
-  const calculationDescription = hasCalculatedEstimate
-    ? `${escapeMarkup(benefit.termMonths)}개월 납입과 공식 정부기여금만 계산했습니다. 은행 이자는 포함하지 않았어요.`
-    : "저장한 정책입니다. 월 저축 가능 금액을 다시 입력하면 공식 정부기여금 예상 범위를 계산합니다.";
+  const hasCalculatedEstimate = benefit.enrollment !== "closed"
+    && Number.isFinite(benefit.governmentContributionMin)
+    && Number.isFinite(benefit.governmentContributionMax);
+  const calculationDescription = benefit.enrollment === "closed"
+    ? "접수 종료 상품이므로 현재 신규 가입 예상 금액을 계산하거나 추천하지 않습니다. 다음 모집 일정은 공식 안내에서 확인하세요."
+    : hasCalculatedEstimate
+      ? `${escapeMarkup(benefit.termMonths)}개월 납입과 공식 정부기여금만 계산했습니다. 은행 이자는 포함하지 않았어요.`
+      : "저장한 정책입니다. 월 저축 가능 금액을 다시 입력하면 공식 정부기여금 예상 범위를 계산합니다.";
   track("benefit_card_click", benefit.id, "results", { category: "saving" });
   track("benefit_detail_view", benefit.id, "detail", { category: "saving" });
   document.getElementById("policyDetail").innerHTML = `<div class="detail-box"><span class="badge">자산형성 · 공식 데이터</span><h2>${escapeMarkup(benefit.title)}</h2><p class="saving">${escapeMarkup(savingValueLabel(benefit))}</p><p>${escapeMarkup(savingConditionsText(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p></div><div class="card" data-reading-section="추천 이유"><h3>공식 안내를 쉬운 말로</h3><p>${escapeMarkup(benefit.summary)}</p><p><b>비교 기준</b>: ${calculationDescription}</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="notice">AI 설명은 참고용이며, 실제 가입 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p></div><div class="card" data-reading-section="주의사항·준비 항목"><h3>중도해지·중복 가입 전 확인</h3><p>${escapeMarkup(benefit.caution)}</p><p>${escapeMarkup(benefit.duplicateCondition || "중복 수혜 조건은 공식 확인 필요")}</p><ul>${documents.map((doc) => `<li>${escapeMarkup(doc)}</li>`).join("")}</ul></div><div class="card" data-reading-section="피드백·공식 링크"><h3>공식 안내와 피드백</h3><div class="feedback-grid"><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="calculation">예상 이득 계산이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="duplicate">중복 가입 조건이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="condition">내 조건에 맞는지 모르겠어요</button></div><div class="actions"><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button><button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button></div></div>`;
