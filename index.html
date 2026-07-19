@@ -1,0 +1,281 @@
+﻿<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bridge Youth</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Bridge Youth</p>
+        <h1>청년 혜택 비교·선택 도우미</h1>
+      </div>
+      <nav>
+        <button data-view="categories">분야 선택</button>
+        <button data-view="profile">내 정보</button>
+        <button data-view="home">비교 결과</button>
+        <button data-view="saved">저장/알림</button>
+        <button data-view="logs">분석</button>
+        <button data-view="privacy">개인정보</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="categories" class="view active">
+        <div class="section-head">
+          <div>
+            <h2>어떤 분야를 비교할까요?</h2>
+            <p class="lead">비슷한 청년 복지 혜택 중 내 조건에서 더 이득인 선택지를 비교해볼 수 있어요.</p>
+          </div>
+        </div>
+        <p class="muted activity-notice">서비스 개선과 정책 안내 개선을 위해 혜택 비교, 설명 열람, 화면 이동 흐름을 익명으로 기록합니다. 이름, 연락처, 실제 신청 내용은 기록하지 않습니다.</p>
+        <div class="category-grid">
+          <button class="category-card active-category" data-category="transport">
+            <span class="badge">MVP</span>
+            <h3>교통비</h3>
+            <p>대중교통 이용 패턴을 기준으로 K-패스, 정액권, 지역 지원을 비교해요.</p>
+          </button>
+          <button class="category-card" data-category="housing">
+            <span class="badge">확장 예정</span>
+            <h3>주거 지원</h3>
+            <p>월세 지원, 보증금 대출, 지자체 주거 지원을 비교할 수 있게 확장해요.</p>
+          </button>
+          <button class="category-card" data-category="education">
+            <span class="badge">확장 예정</span>
+            <h3>교육·취업</h3>
+            <p>자격증, 면접비, 교육비 지원처럼 준비 비용을 줄이는 혜택을 비교해요.</p>
+          </button>
+          <button class="category-card" data-category="saving">
+            <span class="badge">확장 예정</span>
+            <h3>자산형성</h3>
+            <p>청년도약계좌, 저축계좌, 청약 관련 혜택을 비교할 수 있게 확장해요.</p>
+          </button>
+        </div>
+      </section>
+
+      <section id="profile" class="view">
+        <h2>내 정보 저장</h2>
+        <p class="lead">나이, 지역, 현재 상태처럼 여러 혜택 비교에 공통으로 쓰이는 기본 정보를 저장해요.</p>
+        <div class="form-grid">
+          <label>나이 <input id="age" type="number" value="22" /></label>
+          <label>지역
+            <select id="region">
+              <option>서울</option>
+              <option>경기</option>
+              <option>인천</option>
+              <option>부산</option>
+              <option>대구</option>
+              <option>광주</option>
+              <option>대전</option>
+              <option>울산</option>
+              <option>세종</option>
+              <option>강원</option>
+              <option>충북</option>
+              <option>충남</option>
+              <option>전북</option>
+              <option>전남</option>
+              <option>경북</option>
+              <option>경남</option>
+              <option>제주</option>
+            </select>
+          </label>
+          <label>상태
+            <select id="status">
+              <option>재학 중</option>
+              <option>휴학 중</option>
+              <option>졸업 예정</option>
+              <option>졸업 후 구직 중</option>
+              <option>첫 취업 준비 중</option>
+              <option>재직 1년 미만</option>
+              <option>재직 1~3년</option>
+              <option>이직 준비 중</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="helper-box">
+          <h3>추가 조건</h3>
+          <p class="muted">잘 몰라도 괜찮아요. 모르는 항목은 나중에 확인 필요로 표시할 수 있어요.</p>
+          <div class="form-grid">
+            <label>소득 조건
+              <select id="income">
+                <option>잘 모르겠어요</option>
+                <option>소득 기준 확인 가능</option>
+                <option>기초생활수급/차상위 해당</option>
+                <option>해당 없음</option>
+              </select>
+            </label>
+            <label>주거 상태
+              <select id="housing">
+                <option>잘 모르겠어요</option>
+                <option>부모님과 거주</option>
+                <option>독립 거주</option>
+                <option>월세 거주</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <button class="primary" id="saveProfile">내 정보 저장</button>
+      </section>
+
+      <section id="transport" class="view">
+        <h2>교통비 혜택 비교하기</h2>
+        <p class="lead">먼저 세 가지만 알려주세요. 필요한 조건은 다음 단계에서만 물어볼게요.</p>
+        <div class="form-grid">
+          <label>주로 어디에서 이동하나요?
+            <select id="mobilityArea">
+              <option>서울 안</option>
+              <option>수도권 이동</option>
+              <option>지역 내 이동</option>
+              <option>지역 간 이동</option>
+            </select>
+          </label>
+          <label>한 달 대중교통비는 어느 정도인가요?
+            <select id="costRange">
+              <option value="40000">5만원 미만</option>
+              <option value="60000">5~7만원</option>
+              <option value="85000" selected>7~10만원</option>
+              <option value="110000">10만원 이상</option>
+              <option value="direct">정확한 금액을 직접 입력할게요</option>
+            </select>
+          </label>
+          <label>한 달에 대중교통을 15번 이상 타나요?
+            <select id="monthly15Rides">
+              <option value="yes">네, 15번 이상이에요</option>
+              <option value="no">아니요, 15번 미만이에요</option>
+              <option value="unknown">잘 모르겠어요</option>
+            </select>
+          </label>
+          <label>정확한 월 교통비 <input id="monthlyTransitCost" type="number" value="" min="0" placeholder="예: 75000" disabled /></label>
+        </div>
+        <div class="helper-box" id="conditionalInputs">
+          <h3>필요한 추가 정보</h3>
+          <p class="muted">선택한 이동 지역에 맞는 질문만 보여요.</p>
+          <div class="form-grid">
+            <label id="plusTransitField" hidden>광역버스·빨간버스 또는 GTX를 타나요?
+              <select id="usesPlusTransit">
+                <option value="no">아니요</option>
+                <option value="yes">네</option>
+              </select>
+            </label>
+            <label id="bikeField" hidden>따릉이를 얼마나 이용하나요?
+              <select id="bikeUsage">
+                <option value="no">이용하지 않아요</option>
+                <option value="sometimes">가끔 이용해요</option>
+                <option value="pass">30일 이용권을 이용해요</option>
+              </select>
+            </label>
+            <label id="railField" hidden>KTX·SRT를 이용하나요?
+              <select id="longDistanceUse">
+                <option value="no">거의 이용하지 않아요</option>
+                <option value="yes">가끔 이용해요</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <button class="primary" id="compareTransport">혜택 비교하기</button>
+      </section>
+
+      <section id="home" class="view">
+        <div class="section-head">
+          <h2>교통비 비교 결과</h2>
+          <p id="profileSummary"></p>
+        </div>
+        <div class="roadmap" id="roadmap"></div>
+        <div class="notice">
+          2026년 7월 17일 공식 안내를 기준으로 정리한 시연 데이터입니다. 자동으로 최신 공고를 불러오지는 않으므로, 신청 전에는 반드시 공식 링크를 확인하세요.
+        </div>
+        <div class="cards" id="policyList"></div>
+      </section>
+
+      <section id="categoryCompare" class="view">
+        <button class="ghost" onclick="show('categories')">← 분야 선택</button>
+        <div class="section-head">
+          <div>
+            <h2 id="categoryCompareTitle">혜택 비교</h2>
+            <p class="lead" id="categoryCompareLead"></p>
+          </div>
+        </div>
+        <div class="notice">이 화면은 공식 출처를 연결한 확장 시연입니다. 현재는 지원금액을 단정하지 않으며, 실제 자격과 접수 기간은 공식 공고에서 확인해야 해요.</div>
+        <div class="cards" id="categoryBenefitList"></div>
+      </section>
+
+      <section id="detail" class="view">
+        <button class="ghost" onclick="goBackFromDetail()">← 목록</button>
+        <div id="policyDetail"></div>
+      </section>
+
+      <section id="saved" class="view">
+        <h2>저장한 혜택 / 알림</h2>
+        <div id="savedList" class="cards"></div>
+      </section>
+
+      <section id="logs" class="view">
+        <div class="section-head dashboard-head">
+          <div>
+            <h2>이용 분석 대시보드</h2>
+            <p class="muted">개인을 식별하지 않는 이용 흐름을 분석합니다.</p>
+            <p class="muted" id="dashboardDataSource"></p>
+          </div>
+          <button class="ghost" onclick="clearLogs()">로그 초기화</button>
+        </div>
+        <div class="dashboard-grid" id="dashboardSummary"></div>
+        <div class="dashboard-layout">
+          <section class="dashboard-panel">
+            <h3>사용자 여정</h3>
+            <div id="journeyMetrics"></div>
+          </section>
+          <section class="dashboard-panel">
+            <h3>이해 어려움 신호</h3>
+            <div id="readingMetrics"></div>
+          </section>
+          <section class="dashboard-panel">
+            <h3>사용자가 직접 남긴 신호</h3>
+            <div id="feedbackMetrics"></div>
+          </section>
+          <section class="dashboard-panel">
+            <h3>AI 관심 분야 요약</h3>
+            <p class="muted">분야별 열람·저장·공식 링크 클릭 수만 요약해, 사용자가 관심 있게 본 분야를 쉬운 말로 안내합니다.</p>
+            <button onclick="summarizeInterest()">AI로 관심 분야 요약</button>
+            <div id="interestSummary" class="interest-summary"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="privacy" class="view">
+        <h2>개인정보와 이용 기록 안내</h2>
+        <p class="lead">Bridge는 혜택을 비교하고 안내를 개선하기 위해 필요한 최소한의 익명 이용 기록만 수집해요.</p>
+        <div class="cards privacy-cards">
+          <article class="card">
+            <h3>기록하는 정보</h3>
+            <p>분야 선택, 비교 실행, 결과·상세 열람, 저장, 공식 링크 이동, 이해 어려움 선택, 화면 체류 시간이에요.</p>
+          </article>
+          <article class="card">
+            <h3>기록하지 않는 정보</h3>
+            <p>이름, 연락처, 이메일, 주민등록번호, 정확한 주소, 원본 소득 정보, 실제 신청 내용은 기록하지 않아요.</p>
+          </article>
+          <article class="card">
+            <h3>보관과 활용</h3>
+            <p>기록은 익명 식별자와 함께 서버 DB에 최대 90일 보관되며, 개인을 식별하지 않는 집계 분석과 안내 개선에만 사용해요. 운영자는 보관 기간이 지난 기록을 삭제할 수 있어요.</p>
+          </article>
+          <article class="card">
+            <h3>삭제 기준</h3>
+            <p>개발 환경에서는 분석 화면에서 로컬 기록을 초기화할 수 있어요. 운영 환경에서는 개별 신청자를 추적하지 않으므로, 보관 기간이 지난 익명 이벤트를 일괄 삭제해요.</p>
+          </article>
+          <article class="card">
+            <h3>AI 요약</h3>
+            <p>OpenAI API를 사용할 때도 분야별 열람·저장·공식 링크 클릭 수만 요약해 보내며, 프로필 원본이나 신청 정보는 보내지 않아요.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+
+

@@ -1,0 +1,8 @@
+.env
+data
+.git
+node_modules
+*.docx
+*.pptx
+prd_render
+Bridge-Youth-Presentation
