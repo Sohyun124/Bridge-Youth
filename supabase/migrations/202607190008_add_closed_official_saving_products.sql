@@ -6,8 +6,7 @@ insert into public.policies (
   id, source_key, category, official_title, provider, region, source_url, application_url,
   source_published_at, source_checked_at, expires_at, application_period, status,
   eligibility, benefit, easy_summary, caution, required_documents, raw_source
-) values
-(
+) values (
   'youth-tomorrow-savings-account-2026',
   'official:hope:youth-tomorrow-savings-account-2026',
   'saving',
