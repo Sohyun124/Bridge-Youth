@@ -1,4 +1,4 @@
-﻿// Policies are populated only by the reviewed production policy API.
+// Policies are populated only by the reviewed production policy API.
 let benefits = [];
 
 const categoryBenefits = {
@@ -40,6 +40,7 @@ let detailReading = null;
 let detailSectionObserver = null;
 let transportForm = null;
 let toastTimer = null;
+const viewHistory = [];
 
 function showToast(message) {
   const toast = document.getElementById("toast");
@@ -205,8 +206,9 @@ async function loadPolicies() {
   if (document.getElementById("home").classList.contains("active")) renderHome();
 }
 
-function show(view, detailExitAction = `navigate_${view}`) {
+function show(view, detailExitAction = "navigation", options = {}) {
   const currentView = document.querySelector(".view.active")?.id;
+  if (currentView && currentView !== view && !options.fromBack) viewHistory.push(currentView);
   if (view !== "detail" && detailReading) finishDetailReading(detailExitAction);
   if (currentView === "transport" && view !== "transport") finishTransportForm(view);
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
@@ -219,7 +221,12 @@ function show(view, detailExitAction = `navigate_${view}`) {
 
 function goBackFromDetail() {
   track("detail_back_click", detailReading?.benefitId || null, "detail");
-  show("home", "back_button");
+  goBack("home");
+}
+
+function goBack(fallbackView = "categories") {
+  const previousView = viewHistory.pop() || fallbackView;
+  show(previousView, "back_button", { fromBack: true });
 }
 
 function selectCategory(category) {
@@ -267,7 +274,7 @@ async function renderCategoryComparison() {
           <p class="muted">${sourceMetaLine(benefit)}</p>
           <p class="muted">${applicationPeriodLine(benefit)}</p>
           <div class="actions">
-            <button onclick="openCategoryBenefit('${benefit.id}')">${getOfficialLinkLabel(benefit)}</button>
+            <button data-action="category-link" data-benefit-id="${benefit.id}">${getOfficialLinkLabel(benefit)}</button>
           </div>
         </article>`
     )
@@ -348,6 +355,7 @@ function saveProfile() {
   const previous = state.profile || {};
   const age = Number(document.getElementById("age").value || 0);
   const region = document.getElementById("region").value.trim();
+  const district = document.getElementById("district").value;
   if (age < 13 || age > 99 || !region) {
     showToast("나이와 지역을 올바르게 입력해 주세요.");
     return;
@@ -356,6 +364,7 @@ function saveProfile() {
     ...previous,
     age,
     region,
+    district,
     status: document.getElementById("status").value,
     income: document.getElementById("income").value,
     housing: document.getElementById("housing").value,
@@ -400,6 +409,7 @@ function compareTransport() {
   state.profile = {
     age: previous.age,
     region: previous.region,
+    district: previous.district || "",
     status: previous.status || "재학 중",
     income: previous.income || "잘 모르겠어요",
     housing: previous.housing || "잘 모르겠어요",
@@ -507,6 +517,8 @@ function calculateBenefit(benefit) {
   const longDistanceTrips = Number(profile.longDistanceTrips || 0);
   const ageOk = profile.age >= benefit.minAge && profile.age <= benefit.maxAge;
   const regionOk = benefit.region === "전국" || benefit.region === profile.region;
+  const requiredDistrict = typeof benefit.requiredDistrict === "string" ? benefit.requiredDistrict : "";
+  const districtOk = !requiredDistrict || profile.district === requiredDistrict;
   const usesDailyTransit = modes.some((mode) => ["subway", "city-bus", "metro-bus", "gtx"].includes(mode));
   const usesLongDistance = modes.some((mode) => ["ktx", "intercity"].includes(mode)) || longDistanceTrips > 0 || area === "지역 간 이동";
   const usesDdareungi = modes.includes("ddareungi");
@@ -549,9 +561,12 @@ function calculateBenefit(benefit) {
   }
 
   if (benefit.type === "regional-refund") {
-    estimatedSaving = ageOk && regionOk && usesDailyTransit && meetsRideMinimum ? monthlyCost * benefit.refundRate : 0;
+    estimatedSaving = ageOk && regionOk && districtOk && usesDailyTransit && meetsRideMinimum ? monthlyCost * benefit.refundRate : 0;
+    if (benefit.maxMonthlyBenefit) estimatedSaving = Math.min(estimatedSaving, benefit.maxMonthlyBenefit);
     const refundPercent = Math.round((benefit.refundRate || 0) * 100);
-    const cappedText = benefit.maxMonthlyBenefit ? `, 월 최대 ${formatWon(benefit.maxMonthlyBenefit)} 한도` : "";
+    const cappedText = benefit.quarterlyCap
+      ? `, 분기 최대 ${formatWon(benefit.quarterlyCap)}(월 비교용 최대 ${formatWon(benefit.maxMonthlyBenefit)})`
+      : benefit.maxMonthlyBenefit ? `, 월 최대 ${formatWon(benefit.maxMonthlyBenefit)} 한도` : "";
     formula = meetsRideMinimum
       ? `${benefit.region} 거주·월 ${rides}회 이용 기준, 교통비 ${formatWon(monthlyCost)}의 약 ${refundPercent}% 환급 예상${cappedText}`
       : `월 ${benefit.minMonthlyRides}회 이상 이용해야 환급 가능`;
@@ -563,17 +578,19 @@ function calculateBenefit(benefit) {
       : "KTX를 이용할 때만 별도로 확인";
   }
 
-  if (!ageOk || !regionOk) estimatedSaving = 0;
+  if (!ageOk || !regionOk || !districtOk) estimatedSaving = 0;
 
   let confidence = "낮음";
   if (replacedByRegionalPass) confidence = "경기패스로 확인";
   else if (benefit.type === "long-distance" && ageOk && usesLongDistance) confidence = "예매 시 확인";
-  else if (ageOk && regionOk && estimatedSaving > 0) confidence = "높음";
+  else if (ageOk && regionOk && !districtOk) confidence = "확인 필요";
+  else if (ageOk && regionOk && districtOk && estimatedSaving > 0) confidence = "높음";
   else if (ageOk && regionOk) confidence = "확인 필요";
 
   const reasons = [
     ageOk ? "나이 조건 일치" : "나이 조건 확인 필요",
     regionOk ? "지역 조건 일치" : "지역 조건 확인 필요",
+    requiredDistrict ? (districtOk ? `${requiredDistrict} 거주 조건 일치` : `${requiredDistrict} 거주 여부 공식 확인 필요`) : null,
     benefit.minMonthlyRides && !meetsRideMinimum ? `월 ${benefit.minMonthlyRides}회 이상 이용 필요` : null,
     replacedByRegionalPass ? "K-패스와 중복 지급되지 않음" : null,
     rides >= 40 ? "이동 빈도가 높음" : "이동 빈도 보통",
@@ -606,7 +623,7 @@ function renderHome() {
     document.getElementById("roadmap").innerHTML = `
       <h3>교통비 비교를 시작해볼까요?</h3>
       <p>내 정보와 이동 패턴을 입력하면, 내 조건 기준으로 혜택을 비교해드려요.</p>
-      <button onclick="show('transport')">교통비 비교 시작</button>`;
+      <button data-action="show" data-view-target="transport">교통비 비교 시작</button>`;
     document.getElementById("policyList").innerHTML = `
       <div class="empty-state">
         <p>입력한 조건 기준의 비교 결과가 여기에 표시돼요.</p>
@@ -643,9 +660,9 @@ function renderHome() {
       <p class="muted">${sourceMetaLine(best)}</p>
       <p class="muted">${applicationPeriodLine(best)}</p>
       <div class="actions">
-        <button onclick="openDetail('${best.id}')">비교 상세</button>
-        <button onclick="saveBenefit('${best.id}')">저장</button>
-        <button class="ghost" onclick="openApplyLink('${best.id}')">${getOfficialLinkLabel(best)}</button>
+        <button data-action="open-detail" data-benefit-id="${best.id}">비교 상세</button>
+        <button data-action="save-benefit" data-benefit-id="${best.id}">저장</button>
+        <button class="ghost" data-action="official-link" data-benefit-id="${best.id}">${getOfficialLinkLabel(best)}</button>
       </div>
     </article>
     ${compared
@@ -661,9 +678,9 @@ function renderHome() {
           <p class="muted">${sourceMetaLine(benefit)}</p>
           <p class="muted">${applicationPeriodLine(benefit)}</p>
           <div class="actions">
-            <button onclick="openDetail('${benefit.id}')">상세</button>
-            <button onclick="saveBenefit('${benefit.id}')">저장</button>
-            <button class="ghost" onclick="openApplyLink('${benefit.id}')">${getOfficialLinkLabel(benefit)}</button>
+            <button data-action="open-detail" data-benefit-id="${benefit.id}">상세</button>
+            <button data-action="save-benefit" data-benefit-id="${benefit.id}">저장</button>
+            <button class="ghost" data-action="official-link" data-benefit-id="${benefit.id}">${getOfficialLinkLabel(benefit)}</button>
           </div>
         </article>`
       )
@@ -710,26 +727,26 @@ function openDetail(id) {
       <p class="muted">${sourceMetaLine(benefit)}</p>
           <p class="muted">${applicationPeriodLine(benefit)}</p>
       <p class="notice">AI 설명은 참고용이며, 실제 신청 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p>
-      <button onclick="track('simple_explanation_view', '${benefit.id}', 'detail')">쉬운 설명 확인</button>
+      <button data-action="simple-explanation" data-benefit-id="${benefit.id}">쉬운 설명 확인</button>
     </div>
     <div class="card" data-reading-section="주의사항·준비 항목">
       <h3>주의사항</h3>
       <p>${benefit.caution}</p>
       <ul>${documents.map((doc) => `<li>${doc}</li>`).join("")}</ul>
-      <button onclick="track('documents_view', '${benefit.id}', 'documents')">준비 항목 확인</button>
+      <button data-action="documents" data-benefit-id="${benefit.id}">준비 항목 확인</button>
     </div>
     <div class="card" data-reading-section="피드백·공식 링크">
       <h3>피드백</h3>
       <p class="muted">어떤 부분이 헷갈렸는지 선택해주세요.</p>
       <div class="feedback-grid">
-        <button onclick="submitFeedback('${benefit.id}', 'calculation')">예상 이득 계산이 헷갈려요</button>
-        <button onclick="submitFeedback('${benefit.id}', 'duplicate')">다른 지원과 같이 받을 수 있는지 모르겠어요</button>
-        <button onclick="submitFeedback('${benefit.id}', 'condition')">내 조건에 맞는지 모르겠어요</button>
-        <button onclick="submitFeedback('${benefit.id}', 'official_notice')">공식 공고 문장이 어려워요</button>
+        <button data-action="feedback" data-benefit-id="${benefit.id}" data-feedback-type="calculation">예상 이득 계산이 헷갈려요</button>
+        <button data-action="feedback" data-benefit-id="${benefit.id}" data-feedback-type="duplicate">다른 지원과 같이 받을 수 있는지 모르겠어요</button>
+        <button data-action="feedback" data-benefit-id="${benefit.id}" data-feedback-type="condition">내 조건에 맞는지 모르겠어요</button>
+        <button data-action="feedback" data-benefit-id="${benefit.id}" data-feedback-type="official_notice">공식 공고 문장이 어려워요</button>
       </div>
       <div class="actions">
-        <button onclick="openApplyLink('${benefit.id}')">${getOfficialLinkLabel(benefit)}</button>
-        <button onclick="saveBenefit('${benefit.id}')">저장</button>
+        <button data-action="official-link" data-benefit-id="${benefit.id}">${getOfficialLinkLabel(benefit)}</button>
+        <button data-action="save-benefit" data-benefit-id="${benefit.id}">저장</button>
 
       </div>
     </div>`;
@@ -783,7 +800,7 @@ function renderSaved() {
               <p class="saving">${getBenefitValueLabel(benefit)}</p>              <p class="muted">${sourceMetaLine(benefit)}</p>
               <p class="muted">${applicationPeriodLine(benefit)}</p>
               <p class="muted">실제 푸시 대신 D-7 / D-3 / D-1 알림 화면만 표시합니다.</p>
-              <button onclick="track('reminder_view', '${benefit.id}', 'reminder')">알림 확인</button>
+              <button data-action="reminder" data-benefit-id="${benefit.id}">알림 확인</button>
             </article>`
           )
           .join("");
@@ -1014,6 +1031,26 @@ document.getElementById("costRange").addEventListener("change", syncCostInputSta
 document.getElementById("mobilityArea").addEventListener("change", syncConditionalInputs);
 document.getElementById("saveProfile").addEventListener("click", saveProfile);
 document.getElementById("compareTransport").addEventListener("click", compareTransport);
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-action]");
+  if (!button) return;
+  const benefitId = button.dataset.benefitId || null;
+  switch (button.dataset.action) {
+    case "back": goBack(button.dataset.fallback || "categories"); break;
+    case "detail-back": goBackFromDetail(); break;
+    case "show": show(button.dataset.viewTarget); break;
+    case "category-link": openCategoryBenefit(benefitId); break;
+    case "open-detail": openDetail(benefitId); break;
+    case "save-benefit": saveBenefit(benefitId); break;
+    case "official-link": openApplyLink(benefitId); break;
+    case "simple-explanation": track("simple_explanation_view", benefitId, "detail"); break;
+    case "documents": track("documents_view", benefitId, "documents"); break;
+    case "feedback": submitFeedback(benefitId, button.dataset.feedbackType); break;
+    case "reminder": track("reminder_view", benefitId, "reminder"); break;
+    case "clear-logs": clearLogs(); break;
+    case "summarize-interest": summarizeInterest(); break;
+  }
+});
 window.addEventListener("scroll", updateDetailScrollDepth, { passive: true });
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") pauseDetailReading();
@@ -1024,6 +1061,7 @@ window.addEventListener("pagehide", () => finishDetailReading("page_leave"));
 if (state.profile) {
   document.getElementById("age").value = state.profile.age;
   document.getElementById("region").value = state.profile.region;
+  document.getElementById("district").value = state.profile.district || "";
   document.getElementById("status").value = state.profile.status || "재학 중";
   const savedCostRange = state.profile.costRange;
   const validCostRanges = ["40000", "60000", "85000", "110000", "direct"];

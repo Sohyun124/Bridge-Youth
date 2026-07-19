@@ -1,4 +1,4 @@
-﻿const http = require("http");
+const http = require("http");
 const fs = require("fs/promises");
 const path = require("path");
 const { checkDatabaseReadiness, databaseConfigured, insertJourneyEvent, listActivePolicies, listJourneyEvents, purgeJourneyEventsBefore } = require("./database");
@@ -15,7 +15,7 @@ async function loadLocalEnv() {
     const source = await fs.readFile(path.join(rootDir, ".env"), "utf8");
     source.split(/\r?\n/).forEach((line) => {
       const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
-      if (match && !process.env[match[1]]) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
+      if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, "");
     });
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
@@ -204,6 +204,65 @@ async function getAggregateInterestCategories() {
     .sort((a, b) => b.score - a.score);
 }
 
+function hasAdminDashboardAccess(request) {
+  return Boolean(
+    process.env.ADMIN_DASHBOARD_TOKEN &&
+    request.headers["x-admin-dashboard-token"] === process.env.ADMIN_DASHBOARD_TOKEN
+  );
+}
+
+async function getAdminDashboardAnalytics() {
+  const [events, policies] = await Promise.all([listJourneyEvents(), listActivePolicies()]);
+  const policyNames = new Map(policies.map((policy) => [policy.id, policy.title]));
+  const topPolicies = new Map();
+  const confusion = new Map();
+
+  for (const event of events) {
+    if (event.benefitId) {
+      const item = topPolicies.get(event.benefitId) || {
+        benefitId: event.benefitId,
+        title: policyNames.get(event.benefitId) || "공식 정책",
+        views: 0,
+        saves: 0,
+        officialLinkClicks: 0,
+      };
+      if (event.eventType === "benefit_card_click" || event.eventType === "benefit_detail_view") item.views += 1;
+      if (event.eventType === "benefit_save") item.saves += 1;
+      if (event.eventType === "apply_link_click" || event.eventType === "category_official_link_click") item.officialLinkClicks += 1;
+      topPolicies.set(event.benefitId, item);
+    }
+    if (event.eventType === "feedback_submit") {
+      const label = event.metadata?.label || "기타";
+      confusion.set(label, (confusion.get(label) || 0) + 1);
+    }
+  }
+
+  const count = (eventType) => events.filter((event) => event.eventType === eventType).length;
+  const incompleteInputExits = events.filter(
+    (event) => event.eventType === "transport_form_exit" && event.metadata?.completed === false
+  ).length;
+  return {
+    generatedAt: new Date().toISOString(),
+    eventCount: events.length,
+    funnel: {
+      inputStarted: count("transport_form_view"),
+      inputAbandoned: incompleteInputExits,
+      comparisonSubmitted: count("compare_submit"),
+      resultsViewed: count("comparison_results_viewed"),
+      detailViewed: count("benefit_detail_view"),
+      officialLinkClicked: count("apply_link_click"),
+    },
+    topPolicies: [...topPolicies.values()]
+      .map((item) => ({ ...item, interestScore: item.views + item.saves * 3 + item.officialLinkClicks * 4 }))
+      .filter((item) => item.interestScore > 0)
+      .sort((a, b) => b.interestScore - a.interestScore)
+      .slice(0, 20),
+    confusionSignals: [...confusion.entries()]
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20),
+  };
+}
 function getRequestedAnonymousUserId(request) {
   const id = new URL(request.url, `http://${request.headers.host}`).searchParams.get("anonymousUserId");
   return /^anon_[a-z0-9-]{8,100}$/i.test(id || "") ? id : null;
@@ -262,6 +321,11 @@ async function handleApi(request, response, pathname) {
     return sendJson(response, readiness.ok ? 200 : 503, readiness);
   }
 
+  if (pathname === "/api/admin/dashboard" && request.method === "GET") {
+    if (!databaseConfigured()) return sendJson(response, 503, { error: "Event database is not configured" });
+    if (!hasAdminDashboardAccess(request)) return sendJson(response, 401, { error: "Unauthorized" });
+    return sendJson(response, 200, await getAdminDashboardAnalytics());
+  }
   if (pathname === "/api/interest-summary" && request.method === "POST") {
     let body;
     try {

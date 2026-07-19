@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
@@ -8,20 +8,7 @@
   </head>
   <body>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">Bridge Youth</p>
-        <h1>청년 혜택 비교·선택 도우미</h1>
-      </div>
-      <nav>
-        <button data-view="categories">분야 선택</button>
-        <button data-view="profile">내 정보</button>
-        <button data-view="home">비교 결과</button>
-        <button data-view="saved">저장/알림</button>
-        <button data-view="logs">분석</button>
-        <button data-view="privacy">개인정보</button>
-      </nav>
-    </header>
+    <header class="global-nav"><div class="global-nav-inner"><span class="global-brand">Bridge Youth</span><nav class="global-links"><button data-view="categories">혜택 비교</button><button data-view="saved">저장한 혜택</button><button data-view="logs">분석</button><button data-view="privacy">개인정보</button></nav></div></header><div class="sub-nav"><div class="sub-nav-inner"><div><p class="eyebrow">공식 정책 기준</p><h1>Bridge Youth</h1></div><div class="sub-nav-actions"><button class="text-link" data-view="profile">내 정보</button><button class="primary" data-view="categories">비교 시작</button></div></div></div>
 
     <main>
       <section id="categories" class="view active">
@@ -57,6 +44,7 @@
       </section>
 
       <section id="profile" class="view">
+        <button class="back-button" type="button" data-action="back" data-fallback="categories" aria-label="이전 화면으로 돌아가기">← 뒤로가기</button>
         <h2>내 정보 저장</h2>
         <p class="lead">나이, 지역, 현재 상태처럼 여러 혜택 비교에 공통으로 쓰이는 기본 정보를 저장해요.</p>
         <div class="form-grid">
@@ -80,6 +68,13 @@
               <option>경북</option>
               <option>경남</option>
               <option>제주</option>
+            </select>
+          </label>
+          <label>세부 거주지 (선택)
+            <select id="district">
+              <option value="">모르겠어요 / 해당 없음</option>
+              <option>종로구</option>
+              <option value="other">종로구 외 지역</option>
             </select>
           </label>
           <label>상태
@@ -123,6 +118,7 @@
       </section>
 
       <section id="transport" class="view">
+        <button class="back-button" type="button" data-action="back" data-fallback="categories" aria-label="이전 화면으로 돌아가기">← 뒤로가기</button>
         <h2>교통비 혜택 비교하기</h2>
         <p class="lead">먼저 세 가지만 알려주세요. 필요한 조건은 다음 단계에서만 물어볼게요.</p>
         <div class="form-grid">
@@ -181,19 +177,21 @@
       </section>
 
       <section id="home" class="view">
+        <button class="back-button" type="button" data-action="back" data-fallback="transport" aria-label="이전 화면으로 돌아가기">← 입력 수정</button>
         <div class="section-head">
           <h2>교통비 비교 결과</h2>
           <p id="profileSummary"></p>
         </div>
         <div class="roadmap" id="roadmap"></div>
         <div class="notice">
-          2026년 7월 17일 공식 안내를 기준으로 정리한 시연 데이터입니다. 자동으로 최신 공고를 불러오지는 않으므로, 신청 전에는 반드시 공식 링크를 확인하세요.
+          공식 출처 URL·기준일·갱신일이 확인된 활성 정책만 표시합니다. 최신성 또는 자격 조건을 확인할 수 없으면 추천하지 않으며, 신청 전에는 반드시 공식 링크를 확인하세요.
         </div>
         <div class="cards" id="policyList"></div>
       </section>
 
       <section id="categoryCompare" class="view">
-        <button class="ghost" onclick="show('categories')">← 분야 선택</button>
+        <button class="back-button" type="button" data-action="back" data-fallback="categories" aria-label="이전 화면으로 돌아가기">← 뒤로가기</button>
+        <button class="ghost" data-action="show" data-view-target="categories">← 분야 선택</button>
         <div class="section-head">
           <div>
             <h2 id="categoryCompareTitle">혜택 비교</h2>
@@ -205,23 +203,26 @@
       </section>
 
       <section id="detail" class="view">
-        <button class="ghost" onclick="goBackFromDetail()">← 목록</button>
+        <button class="back-button" type="button" data-action="detail-back" aria-label="이전 화면으로 돌아가기">← 비교 결과로</button>
+        <button class="ghost" data-action="detail-back">← 목록</button>
         <div id="policyDetail"></div>
       </section>
 
       <section id="saved" class="view">
+        <button class="back-button" type="button" data-action="back" data-fallback="home" aria-label="이전 화면으로 돌아가기">← 뒤로가기</button>
         <h2>저장한 혜택 / 알림</h2>
         <div id="savedList" class="cards"></div>
       </section>
 
       <section id="logs" class="view">
+        <button class="back-button" type="button" data-action="back" data-fallback="home" aria-label="이전 화면으로 돌아가기">← 뒤로가기</button>
         <div class="section-head dashboard-head">
           <div>
             <h2>이용 분석 대시보드</h2>
             <p class="muted">개인을 식별하지 않는 이용 흐름을 분석합니다.</p>
             <p class="muted" id="dashboardDataSource"></p>
           </div>
-          <button class="ghost" onclick="clearLogs()">로그 초기화</button>
+          <button class="ghost" data-action="clear-logs">로그 초기화</button>
         </div>
         <div class="dashboard-grid" id="dashboardSummary"></div>
         <div class="dashboard-layout">
@@ -240,13 +241,14 @@
           <section class="dashboard-panel">
             <h3>AI 관심 분야 요약</h3>
             <p class="muted">분야별 열람·저장·공식 링크 클릭 수만 요약해, 사용자가 관심 있게 본 분야를 쉬운 말로 안내합니다.</p>
-            <button onclick="summarizeInterest()">AI로 관심 분야 요약</button>
+            <button data-action="summarize-interest">AI로 관심 분야 요약</button>
             <div id="interestSummary" class="interest-summary"></div>
           </section>
         </div>
       </section>
 
       <section id="privacy" class="view">
+        <button class="back-button" type="button" data-action="back" data-fallback="categories" aria-label="이전 화면으로 돌아가기">← 뒤로가기</button>
         <h2>개인정보와 이용 기록 안내</h2>
         <p class="lead">Bridge는 혜택을 비교하고 안내를 개선하기 위해 필요한 최소한의 익명 이용 기록만 수집해요.</p>
         <div class="cards privacy-cards">
@@ -274,7 +276,7 @@
       </section>
     </main>
 
-    <script src="./app.js"></script>
+    <script src="./app.js?v=20260719-4"></script>
   </body>
 </html>
 
