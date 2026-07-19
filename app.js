@@ -1231,8 +1231,14 @@ function calculateSavingBenefit(benefit, profile) {
   const monthlyDeposit = Math.min(requestedDeposit, Number(benefit.monthlyLimit || requestedDeposit));
   const termMonths = Number(benefit.termMonths || 0);
   const cap = Number(benefit.maxMonthlyGovernmentContribution || Number.MAX_SAFE_INTEGER);
-  const generalMonthly = Math.min(Math.floor(monthlyDeposit * Number(benefit.matchRateGeneral || 0)), cap);
-  const preferredMonthly = Math.min(Math.floor(monthlyDeposit * Number(benefit.matchRatePreferred || 0)), cap);
+  const fixedMonthlyGovernmentContribution = Number(benefit.fixedMonthlyGovernmentContribution);
+  const hasFixedGovernmentContribution = Number.isFinite(fixedMonthlyGovernmentContribution) && fixedMonthlyGovernmentContribution >= 0;
+  const generalMonthly = hasFixedGovernmentContribution
+    ? fixedMonthlyGovernmentContribution
+    : Math.min(Math.floor(monthlyDeposit * Number(benefit.matchRateGeneral || 0)), cap);
+  const preferredMonthly = hasFixedGovernmentContribution
+    ? fixedMonthlyGovernmentContribution
+    : Math.min(Math.floor(monthlyDeposit * Number(benefit.matchRatePreferred || 0)), cap);
   const incomeStatus = profile.personalIncome === null
     ? "개인소득을 입력하지 않아 공식 소득 요건 확인 필요"
     : profile.personalIncome <= 75000000
