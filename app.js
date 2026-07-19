@@ -39,6 +39,7 @@ const serverLogState = { connected: false, loaded: false, storage: null };
 let detailReading = null;
 let detailSectionObserver = null;
 let transportForm = null;
+let savingForm = null;
 let toastTimer = null;
 const viewHistory = [];
 
@@ -211,9 +212,11 @@ function show(view, detailExitAction = "navigation", options = {}) {
   if (currentView && currentView !== view && !options.fromBack) viewHistory.push(currentView);
   if (view !== "detail" && detailReading) finishDetailReading(detailExitAction);
   if (currentView === "transport" && view !== "transport") finishTransportForm(view);
+  if (currentView === "saving" && view !== "saving") finishSavingForm(view);
   document.querySelectorAll(".view").forEach((el) => el.classList.remove("active"));
   document.getElementById(view).classList.add("active");
   if (view === "transport" && currentView !== "transport") startTransportForm();
+  if (view === "saving" && currentView !== "saving") startSavingForm();
   if (view === "home") renderHome();
   if (view === "saved") renderSaved();
   if (view === "logs") renderLogs();
@@ -351,6 +354,27 @@ function finishTransportForm(nextView) {
   transportForm = null;
 }
 
+function startSavingForm() {
+  if (savingForm) return;
+  savingForm = {
+    formId: `saving_form_${crypto.randomUUID()}`,
+    openedAt: Date.now(),
+    completed: false,
+  };
+  track("saving_form_view", null, "input", { category: "saving", formId: savingForm.formId });
+}
+
+function finishSavingForm(nextView) {
+  if (!savingForm) return;
+  track("saving_form_exit", null, "input", {
+    category: "saving",
+    formId: savingForm.formId,
+    completed: savingForm.completed,
+    nextView,
+    durationSeconds: Math.round((Date.now() - savingForm.openedAt) / 1000),
+  });
+  savingForm = null;
+}
 function saveProfile() {
   const previous = state.profile || {};
   const age = Number(document.getElementById("age").value || 0);
@@ -1223,15 +1247,21 @@ function calculateSavingBenefit(benefit, profile) {
 
 function savingValueLabel(benefit) {
   if (benefit.enrollment === "closed") return "접수 종료 · 다음 모집 공식 확인 필요";
+  if (!Number.isFinite(benefit.governmentContributionMin) || !Number.isFinite(benefit.governmentContributionMax)) {
+    return "입력 조건 기준 예상은 비교에서 다시 계산";
+  }
   if (!benefit.ageOk) return "나이 조건 확인 필요";
   return `${benefit.termMonths}개월 정부기여금 예상 ${formatWon(benefit.governmentContributionMin)}~${formatWon(benefit.governmentContributionMax)}`;
 }
 
 function savingConditionsText(benefit) {
+  if (!Number.isFinite(benefit.monthlyDeposit)) {
+    return "월 저축 가능 금액을 다시 입력하면 정부기여금 예상 범위를 계산합니다.";
+  }
   const limitText = benefit.requestedDeposit > benefit.monthlyLimit
     ? `입력 금액 중 월 ${formatWon(benefit.monthlyLimit)}까지만 계산`
     : `월 ${formatWon(benefit.monthlyDeposit)} 납입 기준`;
-  return `${limitText} · 은행 이자 제외 · ${benefit.incomeStatus}`;
+  return `${limitText} · 은행 이자 제외 · ${benefit.incomeStatus || "개인소득·가구소득 요건은 공식 확인 필요"}`;
 }
 
 async function compareSaving() {
@@ -1246,7 +1276,12 @@ async function compareSaving() {
   savingComparison = { profile, comparedAt: Date.now(), policies: policies.map((policy) => calculateSavingBenefit(policy, profile)) };
   flowState.comparisonId = `saving_${crypto.randomUUID()}`;
   sessionStorage.setItem("bridge-comparison-id", flowState.comparisonId);
-  track("saving_compare_submit", null, "input", getSavingAnalyticsProfile(profile));
+  if (savingForm) savingForm.completed = true;
+  track("compare_submit", null, "input", {
+    category: "saving",
+    formId: savingForm?.formId || null,
+    ...getSavingAnalyticsProfile(profile),
+  });
   renderSavingResults();
   show("savingResults");
 }
@@ -1275,8 +1310,8 @@ function renderSavingResults() {
     <p class="comparison-summary">${profile.age}세 · 월 저축 가능 금액 ${formatWon(profile.monthlyDeposit)} · 가구 소득 ${profile.householdIncome === "confirmable" ? "공식 확인 가능" : "확인 필요"}</p>
     <div class="comparison-table-wrap"><table class="comparison-table"><thead><tr><th>공식 상품</th><th>예상 만기 정부기여금</th><th>확인할 조건</th><th>접수·출처</th><th>동작</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="notice">AI 설명은 참고용이며, 실제 가입 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p>`;
-  track("saving_results_viewed", null, "results", { resultCount: policies.length });
-  policies.forEach((benefit) => track("comparison_result_view", benefit.id, "saving_compare", { category: "saving", enrollment: benefit.enrollment, ageInRange: benefit.ageOk }));
+  track("comparison_results_viewed", null, "results", { category: "saving", resultCount: policies.length });
+  policies.forEach((benefit) => track("comparison_result_view", benefit.id, "results", { category: "saving", enrollment: benefit.enrollment, ageInRange: benefit.ageOk }));
 }
 
 function renderHome() {
@@ -1294,15 +1329,19 @@ function renderHome() {
 
 function openSavingDetail(benefit) {
   const documents = Array.isArray(benefit.documents) && benefit.documents.length ? benefit.documents : ["공식 기관 확인 필요"];
-  track("benefit_card_click", benefit.id, "saving_compare", { category: "saving" });
+  const hasCalculatedEstimate = Number.isFinite(benefit.governmentContributionMin) && Number.isFinite(benefit.governmentContributionMax);
+  const calculationDescription = hasCalculatedEstimate
+    ? `${escapeMarkup(benefit.termMonths)}개월 납입과 공식 정부기여금만 계산했습니다. 은행 이자는 포함하지 않았어요.`
+    : "저장한 정책입니다. 월 저축 가능 금액을 다시 입력하면 공식 정부기여금 예상 범위를 계산합니다.";
+  track("benefit_card_click", benefit.id, "results", { category: "saving" });
   track("benefit_detail_view", benefit.id, "detail", { category: "saving" });
-  document.getElementById("policyDetail").innerHTML = `<div class="detail-box"><span class="badge">자산형성 · 공식 데이터</span><h2>${escapeMarkup(benefit.title)}</h2><p class="saving">${escapeMarkup(savingValueLabel(benefit))}</p><p>${escapeMarkup(savingConditionsText(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p></div><div class="card" data-reading-section="추천 이유"><h3>공식 안내를 쉬운 말로</h3><p>${escapeMarkup(benefit.summary)}</p><p><b>비교 기준</b>: ${escapeMarkup(benefit.termMonths)}개월 납입과 공식 정부기여금만 계산했습니다. 은행 이자는 포함하지 않았어요.</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="notice">AI 설명은 참고용이며, 실제 가입 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p></div><div class="card" data-reading-section="주의사항·준비 항목"><h3>중도해지·중복 가입 전 확인</h3><p>${escapeMarkup(benefit.caution)}</p><p>${escapeMarkup(benefit.duplicateCondition || "중복 수혜 조건은 공식 확인 필요")}</p><ul>${documents.map((doc) => `<li>${escapeMarkup(doc)}</li>`).join("")}</ul></div><div class="card" data-reading-section="피드백·공식 링크"><h3>공식 안내와 피드백</h3><div class="feedback-grid"><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="calculation">예상 이득 계산이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="duplicate">중복 가입 조건이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="condition">내 조건에 맞는지 모르겠어요</button></div><div class="actions"><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button><button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button></div></div>`;
+  document.getElementById("policyDetail").innerHTML = `<div class="detail-box"><span class="badge">자산형성 · 공식 데이터</span><h2>${escapeMarkup(benefit.title)}</h2><p class="saving">${escapeMarkup(savingValueLabel(benefit))}</p><p>${escapeMarkup(savingConditionsText(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p></div><div class="card" data-reading-section="추천 이유"><h3>공식 안내를 쉬운 말로</h3><p>${escapeMarkup(benefit.summary)}</p><p><b>비교 기준</b>: ${calculationDescription}</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="notice">AI 설명은 참고용이며, 실제 가입 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p></div><div class="card" data-reading-section="주의사항·준비 항목"><h3>중도해지·중복 가입 전 확인</h3><p>${escapeMarkup(benefit.caution)}</p><p>${escapeMarkup(benefit.duplicateCondition || "중복 수혜 조건은 공식 확인 필요")}</p><ul>${documents.map((doc) => `<li>${escapeMarkup(doc)}</li>`).join("")}</ul></div><div class="card" data-reading-section="피드백·공식 링크"><h3>공식 안내와 피드백</h3><div class="feedback-grid"><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="calculation">예상 이득 계산이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="duplicate">중복 가입 조건이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="condition">내 조건에 맞는지 모르겠어요</button></div><div class="actions"><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button><button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button></div></div>`;
   show("detail");
   startDetailReading(benefit.id);
 }
 
 function openDetail(id) {
-  const saving = (savingComparison?.policies || savingPolicies.map((policy) => calculateSavingBenefit(policy, savingComparison?.profile || { age: 0, monthlyDeposit: 0, personalIncome: null, employment: "unknown", householdIncome: "unknown" }))).find((benefit) => benefit.id === id);
+  const saving = (savingComparison?.policies || savingPolicies).find((benefit) => benefit.id === id);
   if (saving) return openSavingDetail(saving);
   return openTransportDetail(id);
 }
@@ -1323,3 +1362,6 @@ function renderSaved() {
 }
 
 document.getElementById("compareSaving").addEventListener("click", compareSaving);
+loadSavingPolicies().then(() => {
+  if (document.getElementById("saved").classList.contains("active")) renderSaved();
+});

@@ -1,4 +1,4 @@
-﻿create extension if not exists pgcrypto;
+create extension if not exists pgcrypto;
 
 create table if not exists public.policies (
   id text primary key,
@@ -47,6 +47,8 @@ create table if not exists public.journey_events (
     'category_select',
     'transport_form_view',
     'transport_form_exit',
+    'saving_form_view',
+    'saving_form_exit',
     'profile_save',
     'compare_submit',
     'comparison_results_viewed',

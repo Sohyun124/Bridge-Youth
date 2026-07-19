@@ -71,6 +71,8 @@ const allowedEventTypes = new Set([
   "category_select",
   "transport_form_view",
   "transport_form_exit",
+  "saving_form_view",
+  "saving_form_exit",
   "profile_save",
   "compare_submit",
   "comparison_results_viewed",
@@ -129,6 +131,13 @@ const allowedMetadataKeys = new Set([
   "type",
   "label",
   "categoryCount",
+  "employment",
+  "personalIncomeEntered",
+  "personalIncomeBand",
+  "householdIncomeKnown",
+  "monthlyDepositBand",
+  "enrollment",
+  "ageInRange",
 ]);
 
 function redactSensitiveText(value) {
