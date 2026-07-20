@@ -337,7 +337,7 @@ async function renderCategoryComparison() {
 function openCategoryBenefit(id) {
   const benefit = activeCategoryPolicies.find((item) => item.id === id);
   if (!benefit) return;
-  const targetUrl = benefit.applicationUrl || benefit.sourceUrl;
+  const targetUrl = id === "incheon-i-pass" ? "https://korea-pass.kr/info/intro_ic.do" : benefit.applicationUrl || benefit.sourceUrl;
   track("category_official_link_click", id, "apply", { category: activeCategory, sourceUrl: targetUrl });
   window.open(targetUrl, "_blank", "noopener,noreferrer");
 }
@@ -915,7 +915,7 @@ function openTransportDetail(id) {
 function openTransportApplyLink(id) {
   const benefit = benefits.find((item) => item.id === id);
   if (!benefit) return;
-  const targetUrl = benefit.applicationUrl || benefit.sourceUrl;
+  const targetUrl = id === "incheon-i-pass" ? "https://korea-pass.kr/info/intro_ic.do" : benefit.applicationUrl || benefit.sourceUrl;
   const elapsedSeconds = state.comparedAt ? Math.round((Date.now() - state.comparedAt) / 1000) : null;
   track("apply_link_click", id, "apply", { elapsedSeconds, sourceUrl: targetUrl });
   window.open(targetUrl, "_blank", "noopener,noreferrer");
@@ -928,6 +928,12 @@ function saveBenefit(id) {
   showToast("저장했어요. 저장/알림에서 다시 볼 수 있어요.");
 }
 
+function removeSavedBenefit(id) {
+  state.saved = state.saved.filter((savedId) => savedId !== id);
+  localStorage.setItem("bridge-saved", JSON.stringify(state.saved));
+  renderSaved();
+  showToast("저장한 혜택에서 삭제했어요.");
+}
 function submitFeedback(id, type) {
   const labels = {
     calculation: "예상 이득 계산이 헷갈려요",
@@ -1224,6 +1230,7 @@ document.addEventListener("click", (event) => {
     case "open-detail": openDetail(benefitId); break;
     case "save-benefit": saveBenefit(benefitId); break;
     case "official-link": openApplyLink(benefitId); break;
+    case "remove-saved": removeSavedBenefit(benefitId); break;
     case "simple-explanation": toggleDetailSection(button, "simple_explanation_view"); break;
     case "documents": toggleDetailSection(button, "documents_view"); break;
     case "feedback": submitFeedback(benefitId, button.dataset.feedbackType); break;
@@ -1558,7 +1565,7 @@ function renderSaved() {
   const transport = getComparedBenefits();
   const saving = savingComparison?.policies || savingPolicies;
   const savedBenefits = [...transport, ...saving].filter((benefit, index, list) => state.saved.includes(benefit.id) && list.findIndex((item) => item.id === benefit.id) === index);
-  document.getElementById("savedList").innerHTML = savedBenefits.length ? savedBenefits.map((benefit) => `<article class="card"><span class="badge">저장한 정책</span><h3>${escapeMarkup(benefit.title)}</h3><p class="saving">${escapeMarkup(benefit.category === "saving" ? (benefit.governmentContributionMin === undefined ? "공식 상세에서 다시 계산" : savingValueLabel(benefit)) : getBenefitValueLabel(benefit))}</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p><div class="actions"><button data-action="open-detail" data-benefit-id="${escapeMarkup(benefit.id)}">상세</button><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button></div></article>`).join("") : `<p class="muted">저장한 혜택이 없습니다.</p>`;
+  document.getElementById("savedList").innerHTML = savedBenefits.length ? savedBenefits.map((benefit) => `<article class="card"><span class="badge">저장한 정책</span><h3>${escapeMarkup(benefit.title)}</h3><p class="saving">${escapeMarkup(benefit.category === "saving" ? (benefit.governmentContributionMin === undefined ? "공식 상세에서 다시 계산" : savingValueLabel(benefit)) : getBenefitValueLabel(benefit))}</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p><div class="actions"><button data-action="open-detail" data-benefit-id="${escapeMarkup(benefit.id)}">상세</button><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button><button class="secondary" data-action="remove-saved" data-benefit-id="${escapeMarkup(benefit.id)}">저장 삭제</button></div></article>`).join("") : `<p class="muted">저장한 혜택이 없습니다.</p>`;
 }
 
 document.getElementById("compareSaving").addEventListener("click", compareSaving);
