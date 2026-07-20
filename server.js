@@ -559,7 +559,7 @@ async function serveStatic(request, response, pathname) {
     response.end("Server error");
   }
 }
-const server = http.createServer(async (request, response) => {
+async function requestHandler(request, response) {
   try {
     const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
     const handled = await handleApi(request, response, pathname);
@@ -567,19 +567,28 @@ const server = http.createServer(async (request, response) => {
   } catch (error) {
     sendJson(response, 500, { error: "Unable to process request" });
   }
-});
+}
+
+const server = http.createServer(requestHandler);
 
 server.headersTimeout = 10_000;
 server.requestTimeout = 15_000;
 server.keepAliveTimeout = 5_000;
 
-loadLocalEnv().then(() => {
-  server.listen(port, () => {
-    console.log(`Bridge Youth is running at http://localhost:${port}`);
-  });
-});
+if (require.main === module) {
+  loadLocalEnv()
+    .then(() => {
+      server.listen(port, () => {
+        console.log(`Bridge Youth is running at http://localhost:${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Unable to start Bridge Youth", error);
+      process.exitCode = 1;
+    });
+}
 
-module.exports = server;
+module.exports = { server, requestHandler };
 
 
 
