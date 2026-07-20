@@ -1053,6 +1053,15 @@ body.app-ready .splash-screen { opacity:0; visibility:hidden; pointer-events:non
 .app-content #categories { background:var(--workspace); }
 .app-content #categories .secondary-services { max-width:860px; }
 
+/* Button auto-layout: labels keep their natural width, while action groups wrap as space changes. */
+.app-content button:not(.service-panel) { display:inline-flex; align-items:center; justify-content:center; gap:8px; width:fit-content; max-width:100%; white-space:nowrap; }
+.app-content .actions,.app-content .table-actions { align-items:stretch; }
+.app-content .actions button { flex:0 1 auto; }
+.app-content .dashboard-head { align-items:flex-start; }
+.app-content .dashboard-head > div { min-width:0; }
+.app-content .dashboard-head > .ghost { flex:0 0 auto; min-width:max-content; margin:0; white-space:nowrap; }
+.app-content .feedback-grid button { width:100%; justify-content:flex-start; white-space:normal; }
+
 @media (max-width:900px) {
   .app-shell { grid-template-columns:1fr; }
   .app-sidebar { position:sticky; top:0; z-index:20; width:auto; min-height:auto; border-right:0; border-bottom:1px solid var(--hairline); }
@@ -1073,4 +1082,6 @@ body.app-ready .splash-screen { opacity:0; visibility:hidden; pointer-events:non
   .app-content .view.active { min-height:calc(100vh - 104px); padding:28px 16px; }
   .app-content .service-grid { margin-top:20px; }
   .app-content .service-panel { min-height:190px; }
+  .app-content .dashboard-head > .ghost { margin-top:12px; }
+  .app-content .actions button { flex:1 1 auto; }
 }
