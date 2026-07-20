@@ -8,6 +8,12 @@
   </head>
   <body>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div class="splash-screen" role="status" aria-label="Bridge Youth를 준비하고 있습니다">
+      <div class="splash-content">
+        <span class="splash-mark" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M7 48h50M14 48V18l18 20 18-20v30M14 18h8m20 0h8M14 18v10m36-10v10M22 28v20m10-10v10m10-20v20"/></svg></span>
+        <strong>Bridge Youth</strong>
+      </div>
+    </div>
     <div class="app-shell">
       <aside class="notion-nav app-sidebar">
         <div class="notion-nav-inner">
@@ -312,5 +318,6 @@
     </div>
 
     <script src="./app.js?v=20260720-5"></script>
+    <script>window.setTimeout(() => document.body.classList.add("app-ready"), 700);</script>
   </body>
 </html>
