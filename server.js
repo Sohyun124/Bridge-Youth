@@ -114,6 +114,9 @@ const allowedMetadataKeys = new Set([
   "status",
   "transitCostRange",
   "mobilityArea",
+  "originRegion",
+  "destinationRegion",
+  "routeType",
   "monthly15Rides",
   "usesPlusTransit",
   "bikeUsage",
@@ -457,7 +460,6 @@ loadLocalEnv().then(() => {
     console.log(`Bridge Youth is running at http://localhost:${port}`);
   });
 });
-
 
 
 

@@ -84,6 +84,11 @@ function isPolicyStructurallyUsable(row) {
     if (!isFiniteNumber(eligibility.minMonthlyRides)) return false;
     if (!benefit.type || !benefit.calculationType) return false;
     if (["refund", "regional-refund"].includes(benefit.type) && !isFiniteNumber(benefit.refundRate)) return false;
+    if (benefit.type === "best-of-refund-or-threshold") {
+      for (const key of ["refundRate", "regularThreshold", "plusThreshold"]) {
+        if (!isFiniteNumber(benefit[key])) return false;
+      }
+    }
     if (benefit.type === "fixed-pass" && (!isFiniteNumber(benefit.passCost) || !isFiniteNumber(benefit.ddareungiAddOn))) return false;
     if (benefit.type === "all-pass") {
       for (const key of ["capitalPlusThreshold", "localPlusThreshold", "capitalRegularThreshold", "localRegularThreshold"]) {

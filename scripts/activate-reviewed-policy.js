@@ -51,6 +51,11 @@ function assertTransportStructure(eligibility, benefit) {
   if (!isFiniteNumber(eligibility.minMonthlyRides)) throw new Error("Transport policy requires numeric minMonthlyRides");
   if (!benefit.type || !benefit.calculationType) throw new Error("Transport policy requires benefit.type and benefit.calculationType");
   if (["refund", "regional-refund"].includes(benefit.type) && !isFiniteNumber(benefit.refundRate)) throw new Error(`${benefit.type} requires numeric refundRate`);
+  if (benefit.type === "best-of-refund-or-threshold") {
+    for (const key of ["refundRate", "regularThreshold", "plusThreshold"]) {
+      if (!isFiniteNumber(benefit[key])) throw new Error(`best-of-refund-or-threshold requires numeric ${key}`);
+    }
+  }
   if (benefit.type === "fixed-pass" && (!isFiniteNumber(benefit.passCost) || !isFiniteNumber(benefit.ddareungiAddOn))) throw new Error("fixed-pass requires numeric passCost and ddareungiAddOn");
   if (benefit.type === "all-pass") {
     for (const key of ["capitalPlusThreshold", "localPlusThreshold", "capitalRegularThreshold", "localRegularThreshold"]) {

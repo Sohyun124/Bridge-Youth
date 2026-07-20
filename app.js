@@ -306,12 +306,18 @@ function syncCostInputState() {
 
 function syncConditionalInputs() {
   const area = document.getElementById("mobilityArea").value;
+  const needsRouteInput = area === "지역 내 이동" || area === "지역 간 이동";
   const isCapitalArea = area === "서울 안" || area === "수도권 이동";
   const isSeoulOnly = area === "서울 안";
   const isLongDistance = area === "지역 간 이동";
+  document.getElementById("routeFields").hidden = !needsRouteInput;
   document.getElementById("plusTransitField").hidden = !isCapitalArea;
   document.getElementById("bikeField").hidden = !isSeoulOnly;
   document.getElementById("railField").hidden = !isLongDistance;
+  if (!needsRouteInput) {
+    document.getElementById("originRegion").value = "";
+    document.getElementById("destinationRegion").value = "";
+  }
   if (!isCapitalArea) document.getElementById("usesPlusTransit").value = "no";
   if (!isSeoulOnly) document.getElementById("bikeUsage").value = "no";
   if (!isLongDistance) document.getElementById("longDistanceUse").value = "no";
@@ -326,6 +332,9 @@ function getAnalyticsProfile(profile) {
     status: profile.status,
     transitCostRange: transitCost <= 30000 ? "3만원 이하" : transitCost <= 60000 ? "3~6만원" : transitCost <= 90000 ? "6~9만원" : "9만원 초과",
     mobilityArea: profile.mobilityArea,
+    originRegion: profile.originRegion || null,
+    destinationRegion: profile.destinationRegion || null,
+    routeType: profile.routeRegions?.length > 1 ? "cross-region" : "single-region",
     monthly15Rides: profile.monthly15Rides,
     usesPlusTransit: profile.usesPlusTransit,
     bikeUsage: profile.bikeUsage,
@@ -411,6 +420,9 @@ async function compareTransport() {
   const costRange = document.getElementById("costRange").value;
   const directCost = Number(document.getElementById("monthlyTransitCost").value || 0);
   const mobilityArea = document.getElementById("mobilityArea").value;
+  const originRegion = document.getElementById("originRegion").value;
+  const destinationRegion = document.getElementById("destinationRegion").value;
+  const needsRouteInput = mobilityArea === "지역 내 이동" || mobilityArea === "지역 간 이동";
   const monthly15Rides = document.getElementById("monthly15Rides").value;
   const usesPlusTransit = document.getElementById("usesPlusTransit").value;
   const bikeUsage = document.getElementById("bikeUsage").value;
@@ -433,6 +445,10 @@ async function compareTransport() {
     showToast("월 버스·지하철 교통비를 입력하거나 범위를 선택해 주세요.");
     return;
   }
+  if (needsRouteInput && (!originRegion || !destinationRegion)) {
+    showToast("주로 출발하는 권역과 도착하는 권역을 모두 선택해 주세요.");
+    return;
+  }
 
   if (!benefits.length) {
     policyDataStatus = "loading";
@@ -453,6 +469,9 @@ async function compareTransport() {
     monthlyTransitCost: costRange === "direct" ? directCost : Number(costRange),
     costRange,
     mobilityArea,
+    originRegion: needsRouteInput ? originRegion : "",
+    destinationRegion: needsRouteInput ? destinationRegion : "",
+    routeRegions: needsRouteInput ? [...new Set([originRegion, destinationRegion])] : [previous.region].filter(Boolean),
     monthly15Rides,
     usesPlusTransit,
     bikeUsage,
@@ -536,6 +555,13 @@ function applicationPeriodLine(benefit) {
   const fallback = period.kind === "ongoing" ? "상시" : period.kind === "scheduled" ? "기간 확인 필요" : "접수 종료";
   return `접수 기간: ${period.label || fallback}`;
 }
+function getRouteLabel(profile) {
+  const routeRegions = Array.isArray(profile?.routeRegions) ? profile.routeRegions.filter(Boolean) : [];
+  if (routeRegions.length > 1) return `${routeRegions.join(" ↔ ")} 이동`;
+  if (routeRegions.length === 1) return `${routeRegions[0]} 권역 이동`;
+  return profile?.mobilityArea || "이동 권역 확인 필요";
+}
+
 function calculateBenefit(benefit) {
   const profile = state.profile || {
     age: 22,
@@ -551,8 +577,12 @@ function calculateBenefit(benefit) {
   const rides = Number(profile.monthlyRideCount || 0);
   const modes = profile.transportModes || ["subway", "city-bus"];
   const area = profile.mobilityArea || "서울 안";
+  const routeRegions = Array.isArray(profile.routeRegions) && profile.routeRegions.length
+    ? profile.routeRegions.filter(Boolean)
+    : [profile.region].filter(Boolean);
   const longDistanceTrips = Number(profile.longDistanceTrips || 0);
   const ageOk = profile.age >= benefit.minAge && profile.age <= benefit.maxAge;
+  const routeRelevant = benefit.region === "전국" || routeRegions.includes(benefit.region);
   const regionOk = benefit.region === "전국" || benefit.region === profile.region;
   const requiredDistrict = typeof benefit.requiredDistrict === "string" ? benefit.requiredDistrict : "";
   const districtOk = !requiredDistrict || profile.district === requiredDistrict;
@@ -561,7 +591,7 @@ function calculateBenefit(benefit) {
   const usesDdareungi = modes.includes("ddareungi");
   const usesPlusTransit = modes.some((mode) => ["metro-bus", "gtx"].includes(mode));
   const meetsRideMinimum = rides >= (benefit.minMonthlyRides || 0);
-  const replacedByRegionalPass = benefit.id === "k-pass" && profile.region === "경기";
+  const replacedByRegionalPass = benefit.id === "k-pass" && ["경기", "인천"].includes(profile.region);
 
   let estimatedSaving = 0;
   let formula = "";
@@ -571,19 +601,33 @@ function calculateBenefit(benefit) {
     if (benefit.maxMonthlyBenefit) estimatedSaving = Math.min(estimatedSaving, benefit.maxMonthlyBenefit);
     const refundPercent = Math.round((benefit.refundRate || 0) * 100);
     formula = replacedByRegionalPass
-      ? "경기도 거주자는 지역형 K-패스 적용 여부를 공식 기관에서 확인 필요"
+      ? "거주지 연계 K-패스의 추가 혜택 적용 여부를 공식 기관에서 확인 필요"
       : meetsRideMinimum
         ? `월 ${rides}회 이용 기준, 교통비 ${formatWon(monthlyCost)}의 약 ${refundPercent}% 환급 예상`
         : `월 ${benefit.minMonthlyRides}회 이상 이용해야 환급 가능`;
   }
 
   if (benefit.type === "fixed-pass") {
-    const areaOk = area === "서울 안" && !modes.includes("metro-bus") && !usesLongDistance;
+    const leavesSeoulCoverage = routeRegions.some((region) => region !== "서울");
+    const areaOk = area === "서울 안" && !leavesSeoulCoverage && !modes.includes("metro-bus") && !usesLongDistance;
     const passCost = benefit.passCost + (usesDdareungi ? benefit.ddareungiAddOn : 0);
     estimatedSaving = areaOk ? Math.max(0, monthlyCost + monthlyBikeCost - passCost) : 0;
     formula = areaOk
       ? `서울 안 이동 기준, ${usesDdareungi ? "따릉이 포함 " : ""}30일권 ${formatWon(passCost)}와 월 이용료 비교`
       : "서울 외 이동, 광역버스, 장거리 이동이 많으면 확인 필요";
+  }
+
+  if (benefit.type === "best-of-refund-or-threshold") {
+    const refundEstimate = monthlyCost * benefit.refundRate;
+    const threshold = usesPlusTransit ? benefit.plusThreshold : benefit.regularThreshold;
+    const thresholdEstimate = Math.max(0, monthlyCost - threshold);
+    estimatedSaving = ageOk && regionOk && usesDailyTransit && meetsRideMinimum
+      ? Math.max(refundEstimate, thresholdEstimate)
+      : 0;
+    const refundPercent = Math.round((benefit.refundRate || 0) * 100);
+    formula = meetsRideMinimum
+      ? `${benefit.region} 거주 기준, ${refundPercent}% 환급과 ${formatWon(threshold)} 초과분 환급 중 공식 시스템이 더 큰 금액을 자동 적용`
+      : `월 ${benefit.minMonthlyRides}회 이상 이용해야 환급 비교 가능`;
   }
 
   if (benefit.type === "all-pass") {
@@ -618,7 +662,8 @@ function calculateBenefit(benefit) {
   if (!ageOk || !regionOk || !districtOk) estimatedSaving = 0;
 
   let confidence = "낮음";
-  if (replacedByRegionalPass) confidence = "경기패스로 확인";
+  if (replacedByRegionalPass) confidence = "거주지 연계 패스로 확인";
+  else if (routeRelevant && !regionOk && benefit.region !== "전국") confidence = "거주 조건 공식 확인 필요";
   else if (benefit.type === "long-distance" && ageOk && usesLongDistance) confidence = "예매 시 확인";
   else if (ageOk && regionOk && !districtOk) confidence = "확인 필요";
   else if (ageOk && regionOk && districtOk && estimatedSaving > 0) confidence = "높음";
@@ -633,7 +678,12 @@ function calculateBenefit(benefit) {
 
   const reasons = [
     ageOk ? "나이 조건 일치" : "나이 조건 확인 필요",
-    regionOk ? "지역 조건 일치" : "지역 조건 확인 필요",
+    benefit.region === "전국"
+      ? "전국 정책"
+      : routeRelevant
+        ? `${benefit.region} 이동 권역 관련 정책`
+        : `${benefit.region} 이용 범위 공식 확인 필요`,
+    regionOk ? "주민등록상 거주 조건 일치" : `${benefit.region} 거주지 조건 공식 확인 필요`,
     requiredDistrict ? (districtOk ? `${requiredDistrict} 거주 조건 일치` : `${requiredDistrict} 거주 여부 공식 확인 필요`) : null,
     benefit.minMonthlyRides && !meetsRideMinimum ? `월 ${benefit.minMonthlyRides}회 이상 이용 필요` : null,
     replacedByRegionalPass ? "K-패스와 중복 지급되지 않음" : null,
@@ -649,6 +699,7 @@ function calculateBenefit(benefit) {
     ...benefit,
     ageOk,
     regionOk,
+    routeRelevant,
     confidence,
     estimatedSaving,
     formula,
@@ -657,7 +708,12 @@ function calculateBenefit(benefit) {
 }
 
 function getComparedBenefits() {
+  const profile = state.profile || {};
+  const routeRegions = Array.isArray(profile.routeRegions) && profile.routeRegions.length
+    ? profile.routeRegions.filter(Boolean)
+    : [profile.region].filter(Boolean);
   return benefits
+    .filter((benefit) => benefit.region === "전국" || benefit.region === profile.region || routeRegions.includes(benefit.region))
     .map(calculateBenefit)
     .sort((a, b) => b.estimatedSaving - a.estimatedSaving);
 }
@@ -689,7 +745,7 @@ function renderTransportCardHome() {
   const best = compared.find((benefit) => benefit.estimatedSaving > 0 && benefit.confidence !== "확인 필요") || compared[0];
 
   document.getElementById("profileSummary").textContent =
-    `${profile.age}세 · ${profile.region} · ${profile.mobilityArea || "서울 안"} · 월 ${formatWon(profile.monthlyTransitCost)} · ${profile.monthly15Rides === "yes" ? "월 15회 이상 이용" : profile.monthly15Rides === "no" ? "월 15회 미만 이용" : "이용 횟수 확인 필요"}`;
+    `${profile.age}세 · 거주지 ${profile.region} · ${getRouteLabel(profile)} · 월 ${formatWon(profile.monthlyTransitCost)} · ${profile.monthly15Rides === "yes" ? "월 15회 이상 이용" : profile.monthly15Rides === "no" ? "월 15회 미만 이용" : "이용 횟수 확인 필요"}`;
   document.getElementById("roadmap").innerHTML = `
     <h3>지금 비교해볼 혜택</h3>
     <p>${getRoadmap(profile.age, profile.status)}</p>
@@ -1116,6 +1172,8 @@ if (state.profile) {
   document.getElementById("costRange").value = validCostRanges.includes(savedCostRange) ? savedCostRange : "direct";
   document.getElementById("monthlyTransitCost").value = state.profile.monthlyTransitCost || "";
   document.getElementById("mobilityArea").value = state.profile.mobilityArea || "서울 안";
+  document.getElementById("originRegion").value = state.profile.originRegion || "";
+  document.getElementById("destinationRegion").value = state.profile.destinationRegion || "";
   document.getElementById("monthly15Rides").value = state.profile.monthly15Rides || "yes";
   document.getElementById("usesPlusTransit").value = state.profile.usesPlusTransit || "no";
   document.getElementById("bikeUsage").value = state.profile.bikeUsage || "no";

@@ -3,6 +3,8 @@ const path = require("path");
 
 const seedPath = path.join(__dirname, "..", "supabase", "migrations", "202607190001_seed_official_policies.sql");
 const sql = fs.readFileSync(seedPath, "utf8");
+const routePolicyPath = path.join(__dirname, "..", "supabase", "migrations", "202607200001_add_official_gyeonggi_incheon_transport_passes.sql");
+const routePolicySql = fs.readFileSync(routePolicyPath, "utf8");
 const failures = [];
 
 const requiredSourceKeys = [
@@ -38,6 +40,19 @@ if (!sql.includes("https://news.seoul.go.kr/traffic/archives/510963")) failures.
 if (!sql.includes("서울특별시 교통 안내")) failures.push("Climate card provider must match the Seoul traffic official guide source");
 if (!sql.includes("\"passCost\":55000")) failures.push("Climate card youth pass cost must be 55,000 KRW according to the official youth fare guide");
 if (!sql.includes("\"ddareungiAddOn\":3000")) failures.push("Climate card Ddareungi add-on must keep the 3,000 KRW official difference");
+
+for (const key of ["official:gyeonggi:the-gyeonggi-pass-2026", "official:incheon:i-pass-faq"]) {
+  if (!routePolicySql.includes(`'${key}'`)) failures.push(`Missing route-aware official source key: ${key}`);
+}
+for (const url of [
+  "https://www.gg.go.kr/bbs/boardView.do?bIdx=119939976&bsIdx=838&menuId=1534",
+  "https://www.incheon.go.kr/traffic/TR080301?curPage=1",
+  "https://korea-pass.kr/join/join.do",
+]) {
+  if (!routePolicySql.includes(`'${url}'`)) failures.push(`Missing official route-aware policy URL: ${url}`);
+}
+if (!routePolicySql.includes('"best-of-refund-or-threshold"')) failures.push("The Gyeonggi Pass needs its reviewed automatic-best-benefit calculation type");
+if (!routePolicySql.includes('"resident_only_regional_benefit"')) failures.push("Route-aware regional policies must preserve resident-only eligibility guidance");
 
 const activeCount = (sql.match(/'active'/g) || []).length;
 const expiredCount = (sql.match(/'expired'/g) || []).length;
