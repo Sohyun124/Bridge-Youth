@@ -932,6 +932,7 @@ function countDistinctFlows(events, eventType, key = "comparisonId") {
 
 function conversionDetail(current, previous) {
   if (!previous) return "이전 단계 데이터 없음";
+  if (current > previous) return "단계별 실제 이벤트 수 (서로 다른 익명 세션 포함)";
   return `이전 단계 대비 ${Math.round((current / previous) * 100)}%`;
 }
 
