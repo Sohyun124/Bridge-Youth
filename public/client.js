@@ -751,10 +751,16 @@ function getComparedBenefits() {
   const routeRegions = Array.isArray(profile.routeRegions) && profile.routeRegions.length
     ? profile.routeRegions.filter(Boolean)
     : [profile.region].filter(Boolean);
-  const matchingRegionalKPass = benefits.some((benefit) => benefit.programFamily === "k-pass-family" && benefit.region === profile.region && benefit.region !== "전국");
   return benefits
     .filter((benefit) => benefit.region === "전국" || benefit.region === profile.region || routeRegions.includes(benefit.region))
-    .filter((benefit) => !(matchingRegionalKPass && benefit.id === "k-pass"))
+    // 모두의 카드(K-패스)는 별도 선택 조건이 아니라 자격 조건 충족 시 자동 포함합니다.
+    .filter((benefit) => {
+      if (benefit.id !== "k-pass") return true;
+      const ageOk = Number(profile.age) >= Number(benefit.minAge) && Number(profile.age) <= Number(benefit.maxAge);
+      const regionOk = benefit.region === "전국" || benefit.region === profile.region;
+      const ridesOk = Number(profile.monthlyRideCount || 0) >= Number(benefit.minMonthlyRides || 0);
+      return ageOk && regionOk && ridesOk;
+    })
     .map(calculateBenefit)
     .sort((a, b) => b.estimatedSaving - a.estimatedSaving);
 }
