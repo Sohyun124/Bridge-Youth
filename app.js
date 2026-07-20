@@ -1,3 +1,5 @@
+window.setTimeout(() => document.body.classList.add("app-ready"), 700);
+
 // Policies are populated only by the reviewed production policy API.
 let benefits = [];
 // These are read by anonymous-log rendering during initial startup, so they
