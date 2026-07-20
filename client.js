@@ -464,8 +464,8 @@ async function compareTransport() {
   const destinationRegion = document.getElementById("destinationRegion").value;
   const needsRouteInput = mobilityArea === "수도권 두 지역 이동" || mobilityArea === "수도권 밖 지역으로 이동";
   const monthly15Rides = document.getElementById("monthly15Rides").value;
-  const usesPlusTransit = document.getElementById("usesPlusTransit").value;
-  const longDistanceUse = document.getElementById("longDistanceUse").value;
+  const usesPlusTransit = "no";
+  const longDistanceUse = "no";
   const monthlyRideCount = monthly15Rides === "yes" ? 30 : monthly15Rides === "no" ? 10 : 0;
   const transportModes = ["subway", "city-bus"];
   if (usesPlusTransit === "yes") transportModes.push("metro-bus", "gtx");
@@ -1260,8 +1260,6 @@ if (state.profile) {
   document.getElementById("originRegion").value = state.profile.originRegion || "";
   document.getElementById("destinationRegion").value = state.profile.destinationRegion || "";
   document.getElementById("monthly15Rides").value = state.profile.monthly15Rides || "yes";
-  document.getElementById("usesPlusTransit").value = state.profile.usesPlusTransit || "no";
-  document.getElementById("longDistanceUse").value = state.profile.longDistanceUse || "no";
   document.getElementById("income").value = state.profile.income || "잘 모르겠어요";
   document.getElementById("housing").value = state.profile.housing || "잘 모르겠어요";
 }
