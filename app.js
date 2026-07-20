@@ -529,13 +529,6 @@ function formatWon(value) {
   return `${Math.max(0, Math.round(value)).toLocaleString("ko-KR")}원`;
 }
 
-function getBenefitValueLabel(benefit) {
-  if (benefit.routeRelevant && !benefit.regionOk && benefit.region !== "전국") return "거주지·이용 범위 공식 확인 필요";
-  if (benefit.routeCoverageNeedsConfirmation) return "이용 범위 공식 확인 필요";
-  if (benefit.type === "long-distance") return `운임의 ${benefit.discountRange} 할인 가능성`;
-  return `${formatWon(benefit.estimatedSaving)} 예상 이득`;
-}
-
 function formatPolicyDate(value) {
   if (!value) return "공식 확인 필요";
   const date = new Date(value);
@@ -1248,6 +1241,8 @@ function policyEnrollmentState(benefit) {
 
 function getBenefitValueLabel(benefit) {
   if (policyEnrollmentState(benefit) === "closed") return "접수 종료 · 다음 모집 공식 확인 필요";
+  if (benefit.confidence === "거주 조건 공식 확인 필요" || (benefit.routeRelevant && !benefit.regionOk && benefit.region !== "전국")) return "거주지·이용 범위 공식 확인 필요";
+  if (benefit.routeCoverageNeedsConfirmation) return "이용 범위 공식 확인 필요";
   if (benefit.type === "long-distance") return `운임의 ${benefit.discountRange} 할인 가능성`;
   return `${formatWon(benefit.estimatedSaving)} 예상 이득`;
 }
@@ -1428,7 +1423,7 @@ function renderHome() {
   const compared = getComparedBenefits();
   if (!compared.length) return renderTransportCardHome();
   const best = compared.find((benefit) => benefit.estimatedSaving > 0 && benefit.confidence !== "확인 필요" && policyEnrollmentState(benefit) !== "closed") || null;
-  document.getElementById("profileSummary").textContent = `${profile.age}세 · ${profile.region} · 월 ${formatWon(profile.monthlyTransitCost)} · 입력한 조건 기준`;
+  document.getElementById("profileSummary").textContent = `${profile.age}세 · ${profile.region} 거주 · ${getRouteLabel(profile)} · 월 ${formatWon(profile.monthlyTransitCost)} · 입력한 조건 기준`;
   document.getElementById("roadmap").innerHTML = best ? `<h3>먼저 확인할 정책</h3><p><strong>${escapeMarkup(best.title)}</strong> — ${escapeMarkup(getBenefitValueLabel(best))}</p><p class="muted">정확한 자격과 중복 수혜 여부는 공식 공고를 확인해야 합니다.</p>` : `<h3>현재 접수 가능한 공식 정책 없음</h3><p>접수 종료 정책은 비교 표에서 공식 안내만 제공합니다. 다음 모집 일정은 공식 기관에서 확인하세요.</p>`;
   const rows = compared.map((benefit) => `<tr><th scope="row">${escapeMarkup(benefit.title)}<small>${escapeMarkup(benefit.provider)}</small></th><td><strong>${escapeMarkup(getBenefitValueLabel(benefit))}</strong><small>${escapeMarkup(benefit.formula)}</small></td><td>${escapeMarkup(benefit.reason)}</td><td><small>${escapeMarkup(sourceMetaLine(benefit))}</small><small>${escapeMarkup(applicationPeriodLine(benefit))}</small></td><td><div class="table-actions"><button data-action="open-detail" data-benefit-id="${escapeMarkup(benefit.id)}">상세</button><button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button></div></td></tr>`).join("");
   document.getElementById("policyList").innerHTML = `<div class="comparison-table-wrap"><table class="comparison-table"><thead><tr><th>공식 정책</th><th>예상 이득</th><th>추천 이유</th><th>출처·접수</th><th>동작</th></tr></thead><tbody>${rows}</tbody></table></div><p class="notice">AI 설명은 참고용이며, 실제 신청 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p>`;
