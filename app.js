@@ -522,9 +522,6 @@ function formatPolicyDate(value) {
   return date.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
 }
 
-function getOfficialLinkLabel(benefit) {
-  return benefit.applicationUrl ? "공식 신청/가입" : "공식 안내 보기";
-}
 
 function sourceMetaLine(benefit) {
   const base = `공식 출처: ${benefit.sourceName || benefit.provider} · 기준일 ${formatPolicyDate(benefit.sourcePublishedAt)} · 검증일 ${formatPolicyDate(benefit.sourceUpdatedAt)}`;
@@ -543,13 +540,6 @@ function getTransportCoverageLine(benefit) {
     return "이용 범위: 시내·마을·광역버스, 지하철, GTX, 신분당선 · 제외: KTX·SRT, 항공, 선박 등";
   }
   return "이용 범위와 제외 교통수단은 공식 안내에서 확인 필요";
-}
-
-function applicationPeriodLine(benefit) {
-  const period = benefit.applicationPeriod || {};
-  if (!period.kind) return "접수 기간: 현재 공식 확인 필요";
-  const fallback = period.kind === "ongoing" ? "상시" : period.kind === "scheduled" ? "기간 확인 필요" : "접수 종료";
-  return `접수 기간: ${period.label || fallback}`;
 }
 function getRouteLabel(profile) {
   const routeRegions = Array.isArray(profile?.routeRegions) ? profile.routeRegions.filter(Boolean) : [];
