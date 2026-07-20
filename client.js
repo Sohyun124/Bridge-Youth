@@ -45,6 +45,7 @@ let currentMemberProfile = null;
 
 let detailReading = null;
 let detailSectionObserver = null;
+let detailDifficultyTimer = null;
 let transportForm = null;
 let savingForm = null;
 let toastTimer = null;
@@ -65,8 +66,62 @@ function addSectionTime(section) {
   delete detailReading.sectionStarts[section];
 }
 
+function clearDetailDifficultyTimer() {
+  if (!detailDifficultyTimer) return;
+  clearTimeout(detailDifficultyTimer);
+  detailDifficultyTimer = null;
+}
+
+function activeDetailReadingMs() {
+  if (!detailReading) return 0;
+  return detailReading.activeMs + (detailReading.isActive ? Date.now() - detailReading.activeStartedAt : 0);
+}
+
+function hideDetailDifficultyDialog() {
+  const dialog = document.getElementById("detailDifficultyDialog");
+  if (dialog) dialog.hidden = true;
+}
+
+function openDetailDifficultyDialog() {
+  if (!detailReading || detailReading.difficultyPromptShown) return;
+  detailReading.difficultyPromptShown = true;
+  pauseDetailReading();
+  track("detail_difficulty_prompt_view", detailReading.benefitId, "feedback", { durationSeconds: Math.floor(activeDetailReadingMs() / 1000) });
+  const dialog = document.getElementById("detailDifficultyDialog");
+  if (!dialog) return;
+  dialog.hidden = false;
+  dialog.querySelector('[data-response="yes"]')?.focus();
+}
+
+function scheduleDetailDifficultyPrompt() {
+  clearDetailDifficultyTimer();
+  if (!detailReading || !detailReading.isActive || detailReading.difficultyPromptShown) return;
+  const remaining = 60_000 - activeDetailReadingMs();
+  detailDifficultyTimer = setTimeout(() => {
+    detailDifficultyTimer = null;
+    if (!detailReading || !detailReading.isActive || detailReading.difficultyPromptShown) return;
+    if (activeDetailReadingMs() >= 60_000) openDetailDifficultyDialog();
+    else scheduleDetailDifficultyPrompt();
+  }, Math.max(100, remaining));
+}
+
+function submitDetailDifficultyResponse(response) {
+  if (!detailReading || detailReading.difficultyResponded) return;
+  detailReading.difficultyResponded = true;
+  const difficult = response === "yes";
+  track("detail_difficulty_response", detailReading.benefitId, "feedback", {
+    response: difficult ? "yes" : "no",
+    durationSeconds: Math.floor(activeDetailReadingMs() / 1000),
+    label: difficult ? "1분 이상 상세 열람 후 어려운 부분 있음" : "1분 이상 상세 열람 후 어려운 부분 없음",
+  });
+  hideDetailDifficultyDialog();
+  resumeDetailReading();
+  showToast(difficult ? "의견을 기록했어요. 안내를 개선하는 데 활용할게요." : "답변을 기록했어요.");
+}
+
 function pauseDetailReading() {
   if (!detailReading || !detailReading.isActive) return;
+  clearDetailDifficultyTimer();
   detailReading.activeMs += Date.now() - detailReading.activeStartedAt;
   Object.keys(detailReading.sectionStarts).forEach(addSectionTime);
   detailReading.isActive = false;
@@ -76,6 +131,7 @@ function resumeDetailReading() {
   if (!detailReading || detailReading.isActive || document.visibilityState === "hidden") return;
   detailReading.isActive = true;
   detailReading.activeStartedAt = Date.now();
+  scheduleDetailDifficultyPrompt();
 }
 
 function startDetailReading(benefitId) {
@@ -86,6 +142,8 @@ function startDetailReading(benefitId) {
     activeStartedAt: Date.now(),
     activeMs: 0,
     isActive: document.visibilityState !== "hidden",
+    difficultyPromptShown: false,
+    difficultyResponded: false,
     sectionStarts: {},
     sectionDurations: {},
     seenSections: new Set(),
@@ -93,29 +151,24 @@ function startDetailReading(benefitId) {
   };
 
   if ("IntersectionObserver" in window) {
-    detailSectionObserver = new IntersectionObserver(
-      (entries) => {
-        if (!detailReading) return;
-        entries.forEach((entry) => {
-          const section = entry.target.dataset.readingSection;
-          if (entry.isIntersecting) {
-            detailReading.seenSections.add(section);
-            if (detailReading.isActive && !detailReading.sectionStarts[section]) {
-              detailReading.sectionStarts[section] = Date.now();
-            }
-          } else {
-            addSectionTime(section);
-          }
-        });
-      },
-      { threshold: 0.55 }
-    );
+    detailSectionObserver = new IntersectionObserver((entries) => {
+      if (!detailReading) return;
+      entries.forEach((entry) => {
+        const section = entry.target.dataset.readingSection;
+        if (entry.isIntersecting) {
+          detailReading.seenSections.add(section);
+          if (detailReading.isActive && !detailReading.sectionStarts[section]) detailReading.sectionStarts[section] = Date.now();
+        } else addSectionTime(section);
+      });
+    }, { threshold: 0.55 });
     document.querySelectorAll("[data-reading-section]").forEach((section) => detailSectionObserver.observe(section));
   }
+  scheduleDetailDifficultyPrompt();
 }
-
 function finishDetailReading(exitAction) {
   if (!detailReading) return;
+  clearDetailDifficultyTimer();
+  hideDetailDifficultyDialog();
   pauseDetailReading();
   if (detailSectionObserver) {
     detailSectionObserver.disconnect();
@@ -1000,6 +1053,9 @@ function renderLogs() {
   const simpleExplanationClicks = events.filter((event) => event.eventType === "simple_explanation_view");
   const documentsClicks = events.filter((event) => event.eventType === "documents_view");
   const feedbacks = events.filter((event) => event.eventType === "feedback_submit");
+  const timedDifficultyResponses = events.filter((event) => event.eventType === "detail_difficulty_response");
+  const timedDifficultyYes = timedDifficultyResponses.filter((event) => event.metadata.response === "yes").length;
+  const timedDifficultyNo = timedDifficultyResponses.filter((event) => event.metadata.response === "no").length;
   const averageReadingSeconds = detailExits.length
     ? detailExits.reduce((sum, event) => sum + Number(event.metadata.durationSeconds || 0), 0) / detailExits.length
     : 0;
@@ -1109,11 +1165,15 @@ function renderLogs() {
     feedbackTotals[label] = (feedbackTotals[label] || 0) + 1;
   });
   const feedbackRows = Object.entries(feedbackTotals).sort((a, b) => b[1] - a[1]);
-  document.getElementById("feedbackMetrics").innerHTML = feedbackRows.length
-    ? feedbackRows.map(([label, count]) => metricRow(label, `${count}회`)).join("")
-    : `<p class="muted">아직 제출된 피드백이 없어요.</p>`;
+  const timedDifficultyRow = metricRow(
+    "1분 이상 상세 열람 응답",
+    `${timedDifficultyResponses.length}건`,
+    `어려움 있음 ${timedDifficultyYes}건 · 없음 ${timedDifficultyNo}건`
+  );
+  document.getElementById("feedbackMetrics").innerHTML = `${timedDifficultyRow}${feedbackRows.length
+    ? feedbackRows.map(([label, count]) => metricRow(label, `${count}건`)).join("")
+    : `<p class="muted">선택형 피드백은 아직 없어요.</p>`}`;
 }
-
 async function clearLogs() {
   if (!window.confirm("이 브라우저에 저장된 이용 로그를 초기화할까요?")) return;
   state.logs = [];
@@ -1161,6 +1221,7 @@ document.addEventListener("click", (event) => {
     case "simple-explanation": toggleDetailSection(button, "simple_explanation_view"); break;
     case "documents": toggleDetailSection(button, "documents_view"); break;
     case "feedback": submitFeedback(benefitId, button.dataset.feedbackType); break;
+    case "detail-difficulty-response": submitDetailDifficultyResponse(button.dataset.response); break;
     case "reminder": track("reminder_view", benefitId, "reminder"); break;
     case "clear-logs": clearLogs(); break;
     case "summarize-interest": summarizeInterest(); break;

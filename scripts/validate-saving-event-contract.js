@@ -16,6 +16,8 @@ const eventTypes = [
   "benefit_save",
   "apply_link_click",
   "feedback_submit",
+  "detail_difficulty_prompt_view",
+  "detail_difficulty_response",
 ];
 for (const eventType of eventTypes) {
   if (!serverSource.includes(`"${eventType}"`)) failures.push(`Server does not allow ${eventType}`);

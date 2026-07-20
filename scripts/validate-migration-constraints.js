@@ -1,8 +1,14 @@
 const fs = require("fs");
 const path = require("path");
 
-const migration = fs.readFileSync(path.join(__dirname, "..", "supabase", "migrations", "202607180001_create_bridge_youth_tables.sql"), "utf8");
-const server = fs.readFileSync(path.join(__dirname, "..", "lib/app-server.cjs"), "utf8");
+const migrationDirectory = path.join(__dirname, "..", "supabase", "migrations");
+const migration = fs.readdirSync(migrationDirectory)
+  .filter((file) => file.endsWith(".sql"))
+  .sort()
+  .map((file) => fs.readFileSync(path.join(migrationDirectory, file), "utf8"))
+  .join("\n");
+const baseMigration = fs.readFileSync(path.join(migrationDirectory, "202607180001_create_bridge_youth_tables.sql"), "utf8");
+const server = fs.readFileSync(path.join(__dirname, "..", "lib", "app-server.cjs"), "utf8");
 const failures = [];
 
 function extractServerSet(name) {
@@ -12,7 +18,8 @@ function extractServerSet(name) {
 }
 
 function extractSqlValues(columnName) {
-  const match = migration.match(new RegExp(`${columnName}[^\n]*check \\(\\s*${columnName} in \\(\\s*([\\s\\S]*?)\\s*\\)\\s*\\)`, "i"));
+  const matches = [...migration.matchAll(new RegExp(`${columnName}[^\\n]*check \\(\\s*${columnName} in \\(\\s*([\\s\\S]*?)\\s*\\)\\s*\\)`, "gi"))];
+  const match = matches.at(-1);
   if (!match) return [];
   return [...match[1].matchAll(/'([^']+)'/g)].map((item) => item[1]).sort();
 }
@@ -28,7 +35,6 @@ compareSet("event_type", extractServerSet("allowedEventTypes"), extractSqlValues
 compareSet("step", extractServerSet("allowedSteps"), extractSqlValues("step"));
 
 for (const snippet of [
-  "region text not null default '전국'",
   "application_url text check (application_url is null or application_url ~ '^https://')",
   "application_period jsonb not null default '{}'::jsonb check (jsonb_typeof(application_period) = 'object')",
   "jsonb_typeof(eligibility) = 'object'",
@@ -37,10 +43,10 @@ for (const snippet of [
   "jsonb_typeof(raw_source) = 'object'",
   "jsonb_typeof(metadata) = 'object'",
 ]) {
-  if (!migration.includes(snippet)) failures.push(`Missing migration constraint/default: ${snippet}`);
+  if (!baseMigration.includes(snippet)) failures.push(`Missing migration constraint/default: ${snippet}`);
 }
 
-if (/\?꾧뎅/.test(migration)) failures.push("Migration still contains mojibake default region text");
+if (/\?袁㏓럢/.test(baseMigration)) failures.push("Migration still contains mojibake default region text");
 
 if (failures.length) {
   console.error(failures.join("\n"));

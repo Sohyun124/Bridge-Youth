@@ -85,6 +85,12 @@ Bridge Youth uses a Notion-inspired, information-first visual language: calm wor
 - Use the member nickname in greetings and navigation. Never substitute a generated member ID for a nickname in ordinary UI.
 - Email sign-up asks for a nickname. Google sign-in uses the profile name supplied by Google as the initial nickname.
 - The authenticated Member screen shows nickname, email, and unique member ID. Logging out always returns to the login form.
+
+## Timed Detail Check
+
+- When a user has actively viewed one policy detail for 60 seconds, show one focused dialog asking whether any part was difficult.
+- The dialog has only two equal-weight choices: “예, 어려운 부분이 있어요” and “아니오, 괜찮아요”. Do not ask for free text in this timed interruption.
+- Record only anonymous policy ID, answer, and active-detail duration. Staff analytics may aggregate these answers; regular users must not see the analytics.
 ## Responsive Rules
 
 | Width | Behavior |

@@ -8,6 +8,17 @@
   </head>
   <body>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <div id="detailDifficultyDialog" class="detail-difficulty-backdrop" hidden>
+      <section class="detail-difficulty-dialog" role="dialog" aria-modal="true" aria-labelledby="detailDifficultyTitle" aria-describedby="detailDifficultyDescription">
+        <p class="app-eyebrow">상세 안내 확인</p>
+        <h2 id="detailDifficultyTitle">정책 내용에 어려운 부분이 있었나요?</h2>
+        <p id="detailDifficultyDescription" class="muted">1분 이상 상세 안내를 확인하셨어요. 답변은 안내를 개선하기 위한 익명 통계로만 기록됩니다.</p>
+        <div class="detail-difficulty-actions">
+          <button class="primary" type="button" data-action="detail-difficulty-response" data-response="yes">예, 어려운 부분이 있어요</button>
+          <button class="secondary" type="button" data-action="detail-difficulty-response" data-response="no">아니오, 괜찮아요</button>
+        </div>
+      </section>
+    </div>
     <div class="splash-screen" role="status" aria-label="Bridge Youth를 준비하고 있습니다">
       <div class="splash-content">
         <span class="splash-mark" aria-hidden="true"><svg viewBox="0 0 64 64" fill="none"><path d="M7 48h50M14 48V18l18 20 18-20v30M14 18h8m20 0h8M14 18v10m36-10v10M22 28v20m10-10v10m10-20v20"/></svg></span>
