@@ -8,7 +8,7 @@
   </head>
   <body>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <header class="notion-nav"><div class="notion-nav-inner"><button class="wordmark" data-view="categories">Bridge Youth <span>공식 정책 비교</span></button><nav class="notion-links" aria-label="주요 메뉴"><button data-view="categories">혜택 비교</button><button data-view="saved">저장한 혜택</button><button data-view="logs">분석</button><button data-view="privacy">개인정보</button></nav><button class="primary nav-start" data-view="categories">비교 시작</button></div></header>
+    <header class="notion-nav"><div class="notion-nav-inner"><button class="wordmark" data-view="categories">Bridge Youth <span>공식 정책 비교</span></button><nav class="notion-links" aria-label="주요 메뉴"><button data-view="categories">혜택 비교</button><button data-view="saved">저장한 혜택</button><button data-view="logs">분석</button><button data-view="privacy">개인정보</button></nav></div></header>
 
     <main>
       <section id="categories" class="view active">
@@ -234,7 +234,6 @@
 
       <section id="detail" class="view">
         <button class="back-button" type="button" data-action="detail-back" aria-label="이전 화면으로 돌아가기">← 비교 결과로</button>
-        <button class="ghost" data-action="detail-back">← 목록</button>
         <div id="policyDetail"></div>
       </section>
 
@@ -257,15 +256,19 @@
         <div class="dashboard-grid" id="dashboardSummary"></div>
         <div class="dashboard-layout">
           <section class="dashboard-panel">
-            <h3>사용자 여정</h3>
+            <h3>전환 퍼널</h3>
             <div id="journeyMetrics"></div>
           </section>
           <section class="dashboard-panel">
-            <h3>이해 어려움 신호</h3>
+            <h3>설명·준비 항목 클릭</h3>
+            <div id="disclosureMetrics"></div>
+          </section>
+          <section class="dashboard-panel">
+            <h3>콘텐츠 이해도 신호</h3>
             <div id="readingMetrics"></div>
           </section>
           <section class="dashboard-panel">
-            <h3>사용자가 직접 남긴 신호</h3>
+            <h3>의견 토픽</h3>
             <div id="feedbackMetrics"></div>
           </section>
           <section class="dashboard-panel">
@@ -306,7 +309,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260719-9"></script>
+    <script src="./app.js?v=20260720-1"></script>
   </body>
 </html>
-

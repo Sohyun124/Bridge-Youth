@@ -337,6 +337,16 @@ pre {
   margin-bottom: 6px;
 }
 
+.progressive-content {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.progressive-content[hidden] {
+  display: none;
+}
+
 .helper-box h3 {
   margin-bottom: 8px;
 }

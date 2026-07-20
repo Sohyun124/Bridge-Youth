@@ -530,6 +530,8 @@ function formatWon(value) {
 }
 
 function getBenefitValueLabel(benefit) {
+  if (benefit.routeRelevant && !benefit.regionOk && benefit.region !== "전국") return "거주지·이용 범위 공식 확인 필요";
+  if (benefit.routeCoverageNeedsConfirmation) return "이용 범위 공식 확인 필요";
   if (benefit.type === "long-distance") return `운임의 ${benefit.discountRange} 할인 가능성`;
   return `${formatWon(benefit.estimatedSaving)} 예상 이득`;
 }
@@ -591,6 +593,7 @@ function calculateBenefit(benefit) {
   const usesDdareungi = modes.includes("ddareungi");
   const usesPlusTransit = modes.some((mode) => ["metro-bus", "gtx"].includes(mode));
   const meetsRideMinimum = rides >= (benefit.minMonthlyRides || 0);
+  const routeCoverageNeedsConfirmation = benefit.type === "fixed-pass" && routeRegions.some((region) => region !== "서울");
   const replacedByRegionalPass = benefit.id === "k-pass" && ["경기", "인천"].includes(profile.region);
 
   let estimatedSaving = 0;
@@ -664,6 +667,7 @@ function calculateBenefit(benefit) {
   let confidence = "낮음";
   if (replacedByRegionalPass) confidence = "거주지 연계 패스로 확인";
   else if (routeRelevant && !regionOk && benefit.region !== "전국") confidence = "거주 조건 공식 확인 필요";
+  else if (routeCoverageNeedsConfirmation) confidence = "이용 범위 공식 확인 필요";
   else if (benefit.type === "long-distance" && ageOk && usesLongDistance) confidence = "예매 시 확인";
   else if (ageOk && regionOk && !districtOk) confidence = "확인 필요";
   else if (ageOk && regionOk && districtOk && estimatedSaving > 0) confidence = "높음";
@@ -690,6 +694,7 @@ function calculateBenefit(benefit) {
     rides >= 40 ? "이동 빈도가 높음" : "이동 빈도 보통",
     modes.includes("metro-bus") ? "광역버스 이용 고려" : null,
     modes.includes("gtx") ? "GTX 이용 고려" : null,
+    routeCoverageNeedsConfirmation ? "경로 일부가 서울 밖이라 이용 범위 공식 확인 필요" : null,
     usesDdareungi ? "따릉이 이용 고려" : null,
     usesLongDistance ? "장거리 이동 고려" : null,
     enrollment === "closed" ? "접수 종료 · 다음 모집 공식 확인 필요" : null,
@@ -700,6 +705,7 @@ function calculateBenefit(benefit) {
     ageOk,
     regionOk,
     routeRelevant,
+    routeCoverageNeedsConfirmation,
     confidence,
     estimatedSaving,
     formula,
@@ -822,19 +828,25 @@ function openTransportDetail(id) {
       <p class="muted">${benefit.formula}</p>
     </div>
     <div class="card" data-reading-section="추천 이유">
-      <h3>왜 이 선택이 유리한가요?</h3>
-      <p>${benefit.summary}</p>
-      <p><b>쉬운 말 설명</b>: 중복 수혜는 다른 지원과 같이 받을 수 있는지 확인하는 뜻이에요. 지역 제한은 해당 지역에 살거나 그 지역 대중교통을 이용해야 한다는 뜻이에요.</p>
-      <p class="muted">${sourceMetaLine(benefit)}</p>
-          <p class="muted">${applicationPeriodLine(benefit)}</p>
-      <p class="notice">AI 설명은 참고용이며, 실제 신청 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p>
-      <button data-action="simple-explanation" data-benefit-id="${benefit.id}">쉬운 설명 확인</button>
+      <h3>공식 안내를 쉬운 말로</h3>
+      <p class="muted">추천 이유와 공식 안내의 뜻을 보고 싶다면 열어보세요.</p>
+      <button data-action="simple-explanation" data-benefit-id="${benefit.id}" data-target-id="simple-explanation-${benefit.id}" data-open-label="쉬운 설명 확인" data-close-label="쉬운 설명 닫기" aria-controls="simple-explanation-${benefit.id}" aria-expanded="false">쉬운 설명 확인</button>
+      <div class="progressive-content" id="simple-explanation-${benefit.id}" hidden>
+        <p>${benefit.summary}</p>
+        <p><b>쉬운 말 설명</b>: 중복 수혜는 다른 지원과 같이 받을 수 있는지 확인하는 뜻이에요. 지역 제한은 해당 지역에 살거나 그 지역 대중교통을 이용해야 한다는 뜻이에요.</p>
+        <p class="muted">${sourceMetaLine(benefit)}</p>
+        <p class="muted">${applicationPeriodLine(benefit)}</p>
+        <p class="notice">AI 설명은 참고용이며, 실제 신청 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p>
+      </div>
     </div>
     <div class="card" data-reading-section="주의사항·준비 항목">
-      <h3>주의사항</h3>
-      <p>${benefit.caution}</p>
-      <ul>${documents.map((doc) => `<li>${doc}</li>`).join("")}</ul>
-      <button data-action="documents" data-benefit-id="${benefit.id}">준비 항목 확인</button>
+      <h3>주의사항·준비 항목</h3>
+      <p class="muted">중복 수혜, 이용 범위와 준비 항목을 신청 전에 확인하세요.</p>
+      <button data-action="documents" data-benefit-id="${benefit.id}" data-target-id="documents-${benefit.id}" data-open-label="준비 항목 확인" data-close-label="준비 항목 닫기" aria-controls="documents-${benefit.id}" aria-expanded="false">준비 항목 확인</button>
+      <div class="progressive-content" id="documents-${benefit.id}" hidden>
+        <p>${benefit.caution}</p>
+        <ul>${documents.map((doc) => `<li>${doc}</li>`).join("")}</ul>
+      </div>
     </div>
     <div class="card" data-reading-section="피드백·공식 링크">
       <h3>피드백</h3>
@@ -998,6 +1010,8 @@ function renderLogs() {
   const detailViews = events.filter((event) => event.eventType === "benefit_detail_view");
   const detailExits = events.filter((event) => event.eventType === "detail_exit");
   const linkClicks = events.filter((event) => event.eventType === "apply_link_click");
+  const simpleExplanationClicks = events.filter((event) => event.eventType === "simple_explanation_view");
+  const documentsClicks = events.filter((event) => event.eventType === "documents_view");
   const feedbacks = events.filter((event) => event.eventType === "feedback_submit");
   const averageReadingSeconds = detailExits.length
     ? detailExits.reduce((sum, event) => sum + Number(event.metadata.durationSeconds || 0), 0) / detailExits.length
@@ -1070,10 +1084,10 @@ function renderLogs() {
   const topDifficultySignal = difficultySignals.find((signal) => signal.status !== "판단 보류");
 
   document.getElementById("dashboardSummary").innerHTML = [
-    ["상세 설명 열람", `${detailViews.length}회`, "혜택 상세를 연 횟수"],
-    ["평균 화면 체류 시간", formatDuration(averageReadingSeconds), "상세 화면이 열린 시간 기준"],
-    ["개선 우선 대상", topDifficultySignal ? topDifficultySignal.status : "판단 보류", topDifficultySignal ? topDifficultySignal.title : "상세 확인 3회 이상 필요"],
-    ["공식 링크 클릭", `${linkClicks.length}회`, "신청 정보 확인 행동"],
+    ["비교 실행", `${compareFlows}회`, "실제 비교 버튼을 누른 횟수"],
+    ["공식 링크 클릭", `${linkClicks.length}회`, conversionDetail(linkFlows, detailFlows)],
+    ["쉬운 설명 버튼", `${simpleExplanationClicks.length}회`, conversionDetail(simpleExplanationClicks.length, detailViews.length)],
+    ["준비 항목 버튼", `${documentsClicks.length}회`, conversionDetail(documentsClicks.length, detailViews.length)],
   ]
     .map(([label, value, detail]) => `<article class="dashboard-card"><span>${label}</span><strong>${value}</strong><small>${detail}</small></article>`)
     .join("");
@@ -1084,6 +1098,11 @@ function renderLogs() {
     metricRow("결과 확인", `${resultFlows}건`, conversionDetail(resultFlows, compareFlows)),
     metricRow("상세 설명 확인", `${detailFlows}건`, conversionDetail(detailFlows, resultFlows)),
     metricRow("공식 공고 이동", `${linkFlows}건`, conversionDetail(linkFlows, detailFlows)),
+  ].join("");
+
+  document.getElementById("disclosureMetrics").innerHTML = [
+    metricRow("쉬운 설명 확인", `${simpleExplanationClicks.length}회`, "정책 내용을 쉽게 풀어 쓴 설명을 연 횟수"),
+    metricRow("준비 항목 확인", `${documentsClicks.length}회`, "주의사항·준비 서류를 연 횟수"),
   ].join("");
 
   document.getElementById("readingMetrics").innerHTML = difficultySignals.length
@@ -1123,6 +1142,20 @@ async function clearLogs() {
   renderLogs();
 }
 
+function toggleDetailSection(button, eventType) {
+  const targetId = button.dataset.targetId;
+  const content = targetId ? document.getElementById(targetId) : null;
+  if (!content) return;
+  const opens = content.hidden;
+  content.hidden = !opens;
+  button.setAttribute("aria-expanded", String(opens));
+  button.textContent = opens ? button.dataset.closeLabel : button.dataset.openLabel;
+  track(eventType, button.dataset.benefitId || null, eventType === "documents_view" ? "documents" : "detail", {
+    interaction: opens ? "open" : "close",
+  });
+  if (opens) renderLogs();
+}
+
 document.querySelectorAll("[data-view]").forEach((button) => {
   button.addEventListener("click", () => show(button.dataset.view));
 });
@@ -1147,8 +1180,8 @@ document.addEventListener("click", (event) => {
     case "open-detail": openDetail(benefitId); break;
     case "save-benefit": saveBenefit(benefitId); break;
     case "official-link": openApplyLink(benefitId); break;
-    case "simple-explanation": track("simple_explanation_view", benefitId, "detail"); break;
-    case "documents": track("documents_view", benefitId, "documents"); break;
+    case "simple-explanation": toggleDetailSection(button, "simple_explanation_view"); break;
+    case "documents": toggleDetailSection(button, "documents_view"); break;
     case "feedback": submitFeedback(benefitId, button.dataset.feedbackType); break;
     case "reminder": track("reminder_view", benefitId, "reminder"); break;
     case "clear-logs": clearLogs(); break;
@@ -1414,7 +1447,49 @@ function openSavingDetail(benefit) {
       : "저장한 정책입니다. 월 저축 가능 금액을 다시 입력하면 공식 정부기여금 예상 범위를 계산합니다.";
   track("benefit_card_click", benefit.id, "results", { category: "saving" });
   track("benefit_detail_view", benefit.id, "detail", { category: "saving" });
-  document.getElementById("policyDetail").innerHTML = `<div class="detail-box"><span class="badge">자산형성 · 공식 데이터</span><h2>${escapeMarkup(benefit.title)}</h2><p class="saving">${escapeMarkup(savingValueLabel(benefit))}</p><p>${escapeMarkup(savingConditionsText(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p></div><div class="card" data-reading-section="추천 이유"><h3>공식 안내를 쉬운 말로</h3><p>${escapeMarkup(benefit.summary)}</p><p><b>비교 기준</b>: ${calculationDescription}</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="notice">AI 설명은 참고용이며, 실제 가입 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p></div><div class="card" data-reading-section="주의사항·준비 항목"><h3>중도해지·중복 가입 전 확인</h3><p>${escapeMarkup(benefit.caution)}</p><p>${escapeMarkup(benefit.duplicateCondition || "중복 수혜 조건은 공식 확인 필요")}</p><ul>${documents.map((doc) => `<li>${escapeMarkup(doc)}</li>`).join("")}</ul></div><div class="card" data-reading-section="피드백·공식 링크"><h3>공식 안내와 피드백</h3><div class="feedback-grid"><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="calculation">예상 이득 계산이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="duplicate">중복 가입 조건이 헷갈려요</button><button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="condition">내 조건에 맞는지 모르겠어요</button></div><div class="actions"><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button><button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button></div></div>`;
+  const simpleExplanationId = `simple-explanation-${escapeMarkup(benefit.id)}`;
+  const documentsId = `documents-${escapeMarkup(benefit.id)}`;
+  document.getElementById("policyDetail").innerHTML = `
+    <div class="detail-box">
+      <span class="badge">자산형성 · 공식 데이터</span>
+      <h2>${escapeMarkup(benefit.title)}</h2>
+      <p class="saving">${escapeMarkup(savingValueLabel(benefit))}</p>
+      <p>${escapeMarkup(savingConditionsText(benefit))}</p>
+      <p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p>
+    </div>
+    <div class="card" data-reading-section="추천 이유">
+      <h3>공식 안내를 쉬운 말로</h3>
+      <p class="muted">상품의 목적과 계산 기준을 보고 싶다면 열어보세요.</p>
+      <button data-action="simple-explanation" data-benefit-id="${escapeMarkup(benefit.id)}" data-target-id="${simpleExplanationId}" data-open-label="쉬운 설명 확인" data-close-label="쉬운 설명 닫기" aria-controls="${simpleExplanationId}" aria-expanded="false">쉬운 설명 확인</button>
+      <div class="progressive-content" id="${simpleExplanationId}" hidden>
+        <p>${escapeMarkup(benefit.summary)}</p>
+        <p><b>비교 기준</b>: ${calculationDescription}</p>
+        <p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p>
+        <p class="notice">AI 설명은 참고용이며, 실제 가입 가능 여부와 혜택 금액은 공식 공고를 반드시 확인하세요.</p>
+      </div>
+    </div>
+    <div class="card" data-reading-section="주의사항·준비 항목">
+      <h3>중도해지·중복 가입 전 확인</h3>
+      <p class="muted">중도해지·중복 가입 조건과 준비 항목을 신청 전에 확인하세요.</p>
+      <button data-action="documents" data-benefit-id="${escapeMarkup(benefit.id)}" data-target-id="${documentsId}" data-open-label="준비 항목 확인" data-close-label="준비 항목 닫기" aria-controls="${documentsId}" aria-expanded="false">준비 항목 확인</button>
+      <div class="progressive-content" id="${documentsId}" hidden>
+        <p>${escapeMarkup(benefit.caution)}</p>
+        <p>${escapeMarkup(benefit.duplicateCondition || "중복 수혜 조건은 공식 확인 필요")}</p>
+        <ul>${documents.map((doc) => `<li>${escapeMarkup(doc)}</li>`).join("")}</ul>
+      </div>
+    </div>
+    <div class="card" data-reading-section="피드백·공식 링크">
+      <h3>공식 안내와 피드백</h3>
+      <div class="feedback-grid">
+        <button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="calculation">예상 이득 계산이 헷갈려요</button>
+        <button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="duplicate">중복 가입 조건이 헷갈려요</button>
+        <button data-action="feedback" data-benefit-id="${escapeMarkup(benefit.id)}" data-feedback-type="condition">내 조건에 맞는지 모르겠어요</button>
+      </div>
+      <div class="actions">
+        <button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button>
+        <button data-action="save-benefit" data-benefit-id="${escapeMarkup(benefit.id)}">저장</button>
+      </div>
+    </div>`;
   show("detail");
   startDetailReading(benefit.id);
 }
