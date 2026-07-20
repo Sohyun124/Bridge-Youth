@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Official-source youth benefit comparison service",
   "scripts": {
-    "start": "node server.js",
+    "start": "node app-server.js",
     "sync:ontong-youth": "node scripts/sync-ontong-youth.js",
     "review:list": "node scripts/list-review-policies.js",
     "review:activate": "node scripts/activate-reviewed-policy.js",
@@ -12,7 +12,7 @@
     "check:database-seed": "node scripts/check-database-seed.js",
     "check:source-urls": "node scripts/check-source-urls.js",
     "smoke:server": "node scripts/smoke-server-runtime.js",
-    "check": "node --check client.js && node --check server.js && node --check database.js && node --check scripts/sync-ontong-youth.js && node --check scripts/list-review-policies.js && node --check scripts/activate-reviewed-policy.js && node --check scripts/smoke-server-runtime.js && node --check scripts/check-source-urls.js && node --check scripts/validate-migration-constraints.js && node --check scripts/validate-policy-seed.js && node --check scripts/check-deployment.js && node --check scripts/check-database-seed.js && node --check scripts/validate-api-contract.js && node --check scripts/validate-privacy-guards.js && node --check scripts/validate-importer-review.js && node --check scripts/validate-policy-review-workflow.js && node scripts/validate-migration-constraints.js && node scripts/validate-policy-seed.js && node scripts/validate-api-contract.js && node scripts/validate-privacy-guards.js && node scripts/validate-importer-review.js && node scripts/validate-policy-review-workflow.js && node scripts/validate-saving-event-contract.js && node scripts/smoke-server-runtime.js"
+    "check": "node --check client.js && node --check app-server.js && node --check database.js && node --check scripts/sync-ontong-youth.js && node --check scripts/list-review-policies.js && node --check scripts/activate-reviewed-policy.js && node --check scripts/smoke-server-runtime.js && node --check scripts/check-source-urls.js && node --check scripts/validate-migration-constraints.js && node --check scripts/validate-policy-seed.js && node --check scripts/check-deployment.js && node --check scripts/check-database-seed.js && node --check scripts/validate-api-contract.js && node --check scripts/validate-privacy-guards.js && node --check scripts/validate-importer-review.js && node --check scripts/validate-policy-review-workflow.js && node scripts/validate-migration-constraints.js && node scripts/validate-policy-seed.js && node scripts/validate-api-contract.js && node scripts/validate-privacy-guards.js && node scripts/validate-importer-review.js && node scripts/validate-policy-review-workflow.js && node scripts/validate-saving-event-contract.js && node scripts/smoke-server-runtime.js"
   },
   "engines": {
     "node": ">=20"

@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
+const serverSource = fs.readFileSync(path.join(__dirname, "..", "app-server.js"), "utf8");
 const failures = [];
 
 for (const snippet of [
