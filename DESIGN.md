@@ -72,7 +72,11 @@ Bridge Youth uses a Notion-inspired, information-first visual language: calm wor
 
 - Inputs have a 1px hairline border, 8px radius, 44px minimum height, and visible label above the control.
 - Disabled controls use muted surface and retain a short explanation nearby.
+- Within one form grid, peer fields use equal column spans and a shared control height. Helper copy uses reserved space below its control; a longer label must not enlarge only that control.
 - Error copy appears directly below the field in plain Korean.
+- The unauthenticated default screen is the account flow. Start with sign-up, offer Google and email choices at equal visual weight, then show the email-login form only after sign-up submission or when the user explicitly selects it.
+- Authentication forms validate each field before submission and show the error directly below that field. Do not put password rules or verification status only in a general toast.
+- Do not show comparison navigation, saved benefits, or stakeholder analytics to an unauthenticated user. After a successful login, enter the comparison home. Stakeholder-only analytics must remain unavailable both in the UI and through its API.
 
 ## Responsive Rules
 
@@ -104,3 +108,4 @@ Bridge Youth uses a Notion-inspired, information-first interface. This replaces 
 - Comparison screens prioritize a readable summary table: policy/product, input-condition estimated benefit, key conditions, recommendation reason, and official source. Cards are only for the selected recommendation, cautions, and secondary actions.
 - Use system UI typography with 17px body text, 24–28px section headings, and 34–40px page headings. Do not use negative letter spacing or product-marketing headline treatments.
 - Preserve all safety language, official-source metadata, minimum 44px targets, and mobile accessibility. Long Korean, numeric values, URLs, table cells, and button labels must wrap without overflow or overlap.
+- Wrap UI copy at word boundaries only. Use word-break: keep-all; do not force character-by-character wrapping.

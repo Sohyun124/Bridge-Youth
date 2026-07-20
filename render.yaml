@@ -22,4 +22,8 @@ services:
         sync: false
       - key: EVENT_RETENTION_DAYS
         value: "90"
+      - key: APP_BASE_URL
+        sync: false
+      - key: TRUST_PROXY
+        value: "true"
 

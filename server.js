@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs/promises");
 const path = require("path");
 const { checkDatabaseReadiness, databaseConfigured, insertJourneyEvent, listActivePolicies, listJourneyEvents, purgeJourneyEventsBefore } = require("./database");
+const { signUpMember, signInMember, getProviderAuthorizationUrl, getMember } = require("./auth");
 
 const rootDir = __dirname;
 const dataDir = path.join(rootDir, "data");
@@ -9,6 +10,12 @@ const eventsPath = path.join(dataDir, "events.json");
 const port = Number(process.env.PORT || 4173);
 const isProduction = process.env.NODE_ENV === "production" || Boolean(process.env.RENDER);
 const allowedPolicyCategories = new Set(["transport", "housing", "education", "saving"]);
+const publicFiles = new Map([
+  ["/", "index.html"],
+  ["/index.html", "index.html"],
+  ["/app.js", "app.js"],
+  ["/styles.css", "styles.css"],
+]);
 
 async function loadLocalEnv() {
   try {
@@ -46,10 +53,11 @@ function securityHeaders(extra = {}) {
   };
 }
 
-function sendJson(response, statusCode, value) {
+function sendJson(response, statusCode, value, extraHeaders = {}) {
   response.writeHead(statusCode, securityHeaders({
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    ...extraHeaders,
   }));
   response.end(JSON.stringify(value));
   return true;
@@ -57,14 +65,60 @@ function sendJson(response, statusCode, value) {
 
 function readBody(request) {
   return new Promise((resolve, reject) => {
-    let body = "";
+    const chunks = [];
+    let byteLength = 0;
+    let tooLarge = false;
     request.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 200_000) reject(new Error("Request body is too large"));
+      byteLength += chunk.length;
+      if (byteLength > 200_000) {
+        tooLarge = true;
+        return;
+      }
+      chunks.push(chunk);
     });
-    request.on("end", () => resolve(body));
+    request.on("end", () => {
+      if (tooLarge) return reject(new Error("Request body is too large"));
+      return resolve(Buffer.concat(chunks).toString("utf8"));
+    });
     request.on("error", reject);
   });
+}
+
+function getClientAddress(request) {
+  if (process.env.TRUST_PROXY === "true") {
+    const forwarded = request.headers["x-forwarded-for"];
+    if (typeof forwarded === "string" && forwarded.trim()) return forwarded.split(",")[0].trim();
+  }
+  return request.socket.remoteAddress || "unknown";
+}
+
+function createRateLimiter(limit, windowMs) {
+  const hits = new Map();
+  return (key) => {
+    const now = Date.now();
+    const current = (hits.get(key) || []).filter((timestamp) => now - timestamp < windowMs);
+    if (current.length >= limit) {
+      hits.set(key, current);
+      return { allowed: false, retryAfterSeconds: Math.max(1, Math.ceil((windowMs - (now - current[0])) / 1000)) };
+    }
+    current.push(now);
+    hits.set(key, current);
+    if (hits.size > 5_000) {
+      for (const [candidate, timestamps] of hits) {
+        if (!timestamps.some((timestamp) => now - timestamp < windowMs)) hits.delete(candidate);
+      }
+    }
+    return { allowed: true };
+  };
+}
+
+const eventWriteLimiter = createRateLimiter(60, 60_000);
+const interestSummaryLimiter = createRateLimiter(8, 60 * 60_000);
+
+function rejectIfRateLimited(response, limiter, request) {
+  const result = limiter(getClientAddress(request));
+  if (result.allowed) return false;
+  return sendJson(response, 429, { error: "Too many requests. Please try again later." }, { "Retry-After": String(result.retryAfterSeconds) });
 }
 
 const allowedEventTypes = new Set([
@@ -328,7 +382,71 @@ async function createInterestSummary(categories) {
   }
 }
 
+function cookieValue(request, name) {
+  return String(request.headers.cookie || "").split(/;\s*/).find((item) => item.startsWith(`${name}=`))?.slice(name.length + 1) || null;
+}
+function sessionCookie(token, expiresIn) {
+  return `bridge_access_token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.max(60, Number(expiresIn || 3600))}${isProduction ? "; Secure" : ""}`;
+}
+function clearSessionCookie() { return `bridge_access_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${isProduction ? "; Secure" : ""}`; }
+function publicAppUrl(request) {
+  const configured = String(process.env.APP_BASE_URL || "").trim().replace(/\/$/, "");
+  if (configured) return configured;
+  const protocol = isProduction ? "https" : "http";
+  return `${protocol}://${request.headers.host}`;
+}
+function isStrongPassword(value) {
+  return typeof value === "string" && value.length >= 8 && /[A-Za-z]/.test(value) && /\d/.test(value);
+}
+function isStaff(member) {
+  return Boolean(member && ["staff", "admin"].includes(member.role));
+}
+async function currentMember(request) {
+  const token = cookieValue(request, "bridge_access_token");
+  if (!token) return null;
+  try { return await getMember(token); } catch { return null; }
+}
 async function handleApi(request, response, pathname) {
+  if (pathname === "/api/auth/signup" && request.method === "POST") {
+    try {
+      const { email, password, nickname, consent } = JSON.parse(await readBody(request));
+      const normalizedEmail = String(email || "").trim().toLowerCase();
+      const normalizedNickname = String(nickname || "").trim();
+      if (!consent || !/^\S+@\S+\.\S+$/.test(normalizedEmail) || normalizedNickname.length < 2 || normalizedNickname.length > 40 || !isStrongPassword(String(password || ""))) {
+        return sendJson(response, 400, { error: "Invalid sign-up details" });
+      }
+      await signUpMember({ email: normalizedEmail, password: String(password), nickname: normalizedNickname, redirectTo: publicAppUrl(request) });
+      return sendJson(response, 201, { ok: true, message: "Check your email to confirm your account." });
+    } catch { return sendJson(response, 400, { error: "Unable to create account" }); }
+  }
+  if (pathname === "/api/auth/google" && request.method === "GET") {
+    try {
+      const location = getProviderAuthorizationUrl("google", publicAppUrl(request));
+      response.writeHead(302, securityHeaders({ Location: location, "Cache-Control": "no-store" }));
+      response.end();
+      return true;
+    } catch { return sendJson(response, 503, { error: "Google sign-in is unavailable" }); }
+  }
+  if (pathname === "/api/auth/session" && request.method === "POST") {
+    try {
+      const { accessToken, expiresIn } = JSON.parse(await readBody(request));
+      const member = await getMember(String(accessToken || ""));
+      if (!member) return sendJson(response, 401, { error: "Unauthorized" });
+      return sendJson(response, 200, { ok: true, member }, { "Set-Cookie": sessionCookie(String(accessToken), expiresIn) });
+    } catch { return sendJson(response, 401, { error: "Unauthorized" }); }
+  }
+  if (pathname === "/api/auth/login" && request.method === "POST") {
+    try {
+      const { email, password } = JSON.parse(await readBody(request));
+      const session = await signInMember({ email: String(email || "").trim().toLowerCase(), password: String(password || "") });
+      return sendJson(response, 200, { ok: true }, { "Set-Cookie": sessionCookie(session.access_token, session.expires_in) });
+    } catch { return sendJson(response, 401, { error: "Invalid email or password" }); }
+  }
+  if (pathname === "/api/auth/me" && request.method === "GET") {
+    const member = await currentMember(request);
+    return member ? sendJson(response, 200, { member }) : sendJson(response, 401, { error: "Unauthorized" });
+  }
+  if (pathname === "/api/auth/logout" && request.method === "POST") return sendJson(response, 200, { ok: true }, { "Set-Cookie": clearSessionCookie() });
   if (pathname === "/api/health" && request.method === "GET") {
     const readiness = await checkDatabaseReadiness();
     return sendJson(response, readiness.ok ? 200 : 503, readiness);
@@ -336,10 +454,14 @@ async function handleApi(request, response, pathname) {
 
   if (pathname === "/api/admin/dashboard" && request.method === "GET") {
     if (!databaseConfigured()) return sendJson(response, 503, { error: "Event database is not configured" });
-    if (!hasAdminDashboardAccess(request)) return sendJson(response, 401, { error: "Unauthorized" });
+    const member = await currentMember(request);
+    if (!isStaff(member)) return sendJson(response, 401, { error: "Unauthorized" });
     return sendJson(response, 200, await getAdminDashboardAnalytics());
   }
   if (pathname === "/api/interest-summary" && request.method === "POST") {
+    const member = await currentMember(request);
+    if (!isStaff(member)) return sendJson(response, 401, { error: "Unauthorized" });
+    if (rejectIfRateLimited(response, interestSummaryLimiter, request)) return true;
     let body;
     try {
       body = JSON.parse(await readBody(request));
@@ -373,15 +495,8 @@ async function handleApi(request, response, pathname) {
 
   if (pathname !== "/api/events") return false;
 
-  if (request.method === "GET") {
-    if (isProduction && !databaseConfigured()) return sendJson(response, 503, { error: "Event database is not configured" });
-    const anonymousUserId = getRequestedAnonymousUserId(request);
-    if (isProduction && !anonymousUserId) return sendJson(response, 400, { error: "A valid anonymousUserId is required" });
-    const allEvents = databaseConfigured() ? await listJourneyEvents(anonymousUserId || undefined) : await readEvents();
-    const events = databaseConfigured() || !anonymousUserId ? allEvents : allEvents.filter((event) => event.anonymousUserId === anonymousUserId);
-    return sendJson(response, 200, { events, storage: databaseConfigured() ? "database" : "development-file" });
-  }
   if (request.method === "POST") {
+    if (rejectIfRateLimited(response, eventWriteLimiter, request)) return true;
     let event;
     try {
       event = sanitizeEvent(JSON.parse(await readBody(request)));
@@ -390,6 +505,10 @@ async function handleApi(request, response, pathname) {
     }
     if (!event.eventId || !event.eventType || !event.createdAt || !event.anonymousUserId) {
       return sendJson(response, 400, { error: "eventId, anonymousUserId, eventType, createdAt are required" });
+    }
+    const createdAt = Date.parse(event.createdAt);
+    if (!Number.isFinite(createdAt) || createdAt > Date.now() + 5 * 60_000 || createdAt < Date.now() - 120 * 24 * 60 * 60_000) {
+      return sendJson(response, 400, { error: "createdAt must be a recent valid timestamp" });
     }
     if (isProduction && !databaseConfigured()) return sendJson(response, 503, { error: "Event database is not configured" });
     if (databaseConfigured()) await insertJourneyEvent(event);
@@ -403,31 +522,26 @@ async function handleApi(request, response, pathname) {
     return sendJson(response, 201, { ok: true });
   }
 
-  if (request.method === "DELETE") {
-    if (isProduction && !databaseConfigured()) return sendJson(response, 503, { error: "Event database is not configured" });
-    if (databaseConfigured()) return sendJson(response, 405, { error: "Production event deletion is disabled" });
-    await writeEvents([]);
-    return sendJson(response, 200, { ok: true });
-  }
-
   return sendJson(response, 405, { error: "Method not allowed" });
 }
 
-async function serveStatic(response, pathname) {
-  const relativePath = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
-  const filePath = path.resolve(rootDir, relativePath);
-  if (!filePath.startsWith(rootDir)) {
-    response.writeHead(403, securityHeaders({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }));
-    response.end("Forbidden");
+async function serveStatic(request, response, pathname) {
+  if (!["GET", "HEAD"].includes(request.method)) {
+    return sendJson(response, 405, { error: "Method not allowed" }, { Allow: "GET, HEAD" });
+  }
+  const filename = publicFiles.get(pathname);
+  if (!filename) {
+    response.writeHead(404, securityHeaders({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }));
+    response.end("Not found");
     return;
   }
 
+  const filePath = path.join(rootDir, filename);
   const extension = path.extname(filePath);
   const contentTypes = {
     ".html": "text/html; charset=utf-8",
     ".js": "text/javascript; charset=utf-8",
     ".css": "text/css; charset=utf-8",
-    ".png": "image/png",
   };
 
   try {
@@ -439,28 +553,35 @@ async function serveStatic(response, pathname) {
       "Cache-Control": cacheControl,
       ...(contentSecurityPolicy ? { "Content-Security-Policy": contentSecurityPolicy } : {}),
     }));
-    response.end(content);
-  } catch (error) {
-    response.writeHead(error.code === "ENOENT" ? 404 : 500, securityHeaders({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }));
-    response.end(error.code === "ENOENT" ? "Not found" : "Server error");
+    response.end(request.method === "HEAD" ? undefined : content);
+  } catch {
+    response.writeHead(500, securityHeaders({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }));
+    response.end("Server error");
   }
 }
-
 const server = http.createServer(async (request, response) => {
   try {
     const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
     const handled = await handleApi(request, response, pathname);
-    if (handled === false) await serveStatic(response, pathname);
+    if (handled === false) await serveStatic(request, response, pathname);
   } catch (error) {
     sendJson(response, 500, { error: "Unable to process request" });
   }
 });
 
-loadLocalEnv().then(() => {
-  server.listen(port, () => {
-    console.log(`Bridge Youth is running at http://localhost:${port}`);
+server.headersTimeout = 10_000;
+server.requestTimeout = 15_000;
+server.keepAliveTimeout = 5_000;
+
+if (require.main === module) {
+  loadLocalEnv().then(() => {
+    server.listen(port, () => {
+      console.log(`Bridge Youth is running at http://localhost:${port}`);
+    });
   });
-});
+}
+
+module.exports = server;
 
 
 

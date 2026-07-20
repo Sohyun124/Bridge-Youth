@@ -5,6 +5,8 @@ const seedPath = path.join(__dirname, "..", "supabase", "migrations", "202607190
 const sql = fs.readFileSync(seedPath, "utf8");
 const routePolicyPath = path.join(__dirname, "..", "supabase", "migrations", "202607200001_add_official_gyeonggi_incheon_transport_passes.sql");
 const routePolicySql = fs.readFileSync(routePolicyPath, "utf8");
+const transportRefreshPath = path.join(__dirname, "..", "supabase", "migrations", "202607200002_refresh_nationwide_everybody_card.sql");
+const transportRefreshSql = fs.readFileSync(transportRefreshPath, "utf8");
 const failures = [];
 
 const requiredSourceKeys = [
@@ -39,7 +41,13 @@ if (!/status\s*=\s*excluded\.status/i.test(sql)) failures.push("Seed upsert does
 if (!sql.includes("https://news.seoul.go.kr/traffic/archives/510963")) failures.push("Climate card seed must use the current Seoul traffic official guide URL");
 if (!sql.includes("서울특별시 교통 안내")) failures.push("Climate card provider must match the Seoul traffic official guide source");
 if (!sql.includes("\"passCost\":55000")) failures.push("Climate card youth pass cost must be 55,000 KRW according to the official youth fare guide");
-if (!sql.includes("\"ddareungiAddOn\":3000")) failures.push("Climate card Ddareungi add-on must keep the 3,000 KRW official difference");
+if (!transportRefreshSql.includes("모두의 카드(K-패스)")) failures.push("Transport refresh must add the nationwide Everybody Card policy title");
+if (!transportRefreshSql.includes("https://www.molit.go.kr/USR/NEWS/dtl.jsp?id=95091662&lcmspage=2")) failures.push("Transport refresh must cite the Ministry of Land official Everybody Card source");
+if (!transportRefreshSql.includes('"type":"all-pass"')) failures.push("Transport refresh must use the automatic all-pass calculation type");
+if (!transportRefreshSql.includes('"programFamily":"k-pass-family"')) failures.push("K-pass regional extensions must be identified as one program family");
+if (!transportRefreshSql.includes('"originalSourceUpdatedAt":"2024-09-20T00:00:00+09:00"')) failures.push("Incheon I-Pass must transparently preserve its original FAQ update date");
+if (!transportRefreshSql.includes('"currentOperationVerifiedAt":"2026-02-03T00:00:00+09:00"')) failures.push("Transport refresh must preserve the current official operation verification date");
+if (!transportRefreshSql.includes("따릉이 이용 여부는 이 비교에서 묻지 않습니다")) failures.push("Climate card comparison must not require Ddareungi input");
 
 for (const key of ["official:gyeonggi:the-gyeonggi-pass-2026", "official:incheon:i-pass-faq"]) {
   if (!routePolicySql.includes(`'${key}'`)) failures.push(`Missing route-aware official source key: ${key}`);

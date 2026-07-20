@@ -35,6 +35,7 @@ async function checkDatabaseReadiness() {
 }
 
 function policyRowToClientPolicy(row) {
+  const sourceReview = row.raw_source && typeof row.raw_source === "object" ? row.raw_source : {};
   return {
     id: row.id,
     title: row.official_title,
@@ -46,6 +47,8 @@ function policyRowToClientPolicy(row) {
     applicationUrl: row.application_url,
     sourceUpdatedAt: row.source_checked_at,
     sourcePublishedAt: row.source_published_at,
+    sourceOriginalUpdatedAt: sourceReview.originalSourceUpdatedAt || null,
+    currentOperationVerifiedAt: sourceReview.currentOperationVerifiedAt || null,
     deadline: row.expires_at,
     applicationPeriod: row.application_period,
     summary: row.easy_summary,
@@ -91,7 +94,7 @@ function isPolicyStructurallyUsable(row) {
     }
     if (benefit.type === "fixed-pass" && (!isFiniteNumber(benefit.passCost) || !isFiniteNumber(benefit.ddareungiAddOn))) return false;
     if (benefit.type === "all-pass") {
-      for (const key of ["capitalPlusThreshold", "localPlusThreshold", "capitalRegularThreshold", "localRegularThreshold"]) {
+      for (const key of ["refundRate", "capitalPlusThreshold", "localPlusThreshold", "capitalRegularThreshold", "localRegularThreshold"]) {
         if (!isFiniteNumber(benefit[key])) return false;
       }
     }
@@ -102,7 +105,7 @@ function isPolicyStructurallyUsable(row) {
 
 async function listActivePolicies(category) {
   const query = new URLSearchParams({
-    select: "id,official_title,category,provider,region,source_url,application_url,source_published_at,source_checked_at,expires_at,application_period,eligibility,benefit,easy_summary,caution,required_documents",
+    select: "id,official_title,category,provider,region,source_url,application_url,source_published_at,source_checked_at,expires_at,application_period,eligibility,benefit,easy_summary,caution,required_documents,raw_source",
     status: "in.(active,expired)",
     order: "source_checked_at.desc",
   });
