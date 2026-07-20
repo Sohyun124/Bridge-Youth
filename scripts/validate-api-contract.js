@@ -1,4 +1,4 @@
-﻿const fs = require("fs");
+const fs = require("fs");
 const path = require("path");
 const { isPolicyStructurallyUsable, policyRowToClientPolicy } = require("../database");
 
@@ -84,13 +84,13 @@ const reviewOnlyRow = {
 };
 if (isPolicyStructurallyUsable(reviewOnlyRow)) failures.push("Review-only policy text must not be structurally usable for active results");
 
-const appSource = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
-if (/benefit\.docs\b/.test(appSource)) failures.push("app.js still references benefit.docs");
-if (!appSource.includes('function sourceMetaLine')) failures.push('app.js must centralize official source/basis/update display');
-if (!appSource.includes('기준일') || !appSource.includes('갱신일')) failures.push('app.js must display source basis and update dates');
+const appSource = fs.readFileSync(path.join(__dirname, "..", "client.js"), "utf8");
+if (/benefit\.docs\b/.test(appSource)) failures.push("client.js still references benefit.docs");
+if (!appSource.includes('function sourceMetaLine')) failures.push('client.js must centralize official source/basis/update display');
+if (!appSource.includes('기준일') || !appSource.includes('갱신일')) failures.push('client.js must display source basis and update dates');
 for (const field of ["sourceName", "sourceUpdatedAt",
   "sourcePublishedAt", "documents", "sourceUrl", "applicationUrl", "applicationPeriod"]) {
-  if (!appSource.includes(`benefit.${field}`)) failures.push(`app.js does not reference expected client field benefit.${field}`);
+  if (!appSource.includes(`benefit.${field}`)) failures.push(`client.js does not reference expected client field benefit.${field}`);
 }
 
 if (failures.length) {

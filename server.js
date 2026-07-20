@@ -13,7 +13,7 @@ const allowedPolicyCategories = new Set(["transport", "housing", "education", "s
 const publicFiles = new Map([
   ["/", "index.html"],
   ["/index.html", "index.html"],
-  ["/app.js", "app.js"],
+  ["/client.js", "client.js"],
   ["/styles.css", "styles.css"],
 ]);
 
