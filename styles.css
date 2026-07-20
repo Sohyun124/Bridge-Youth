@@ -1027,3 +1027,45 @@ input:disabled { background:#efefed; }
 .metric-row span,.metric-row small,.dashboard-panel p { overflow-wrap:anywhere; word-break:keep-all; }
 @media (max-width:1024px) { .notion-nav-inner { padding:0 16px; gap:12px; } .view.active { padding:40px 20px; } .notion-links { gap:0; } .notion-links button { padding:8px; } }
 @media (max-width:700px) { .notion-nav { position:relative; } .notion-nav-inner { min-height:unset; padding:8px 16px; flex-wrap:wrap; } .wordmark { order:0; flex:1; } .wordmark .wordmark-subtitle { display:none; } .nav-start { order:1; min-height:40px; margin:0; } .notion-links { order:2; flex-basis:100%; justify-content:space-between; overflow-x:auto; } .notion-links button { flex:0 0 auto; min-height:40px; font-size:13px; } .view.active { min-height:calc(100vh - 104px); padding:32px 16px; } h2 { font-size:28px; } .lead { font-size:16px; } .service-grid,.form-grid,.dashboard-grid,.dashboard-layout { grid-template-columns:1fr; } .service-panel { min-height:200px; } .comparison-table { min-width:720px; } .comparison-table th,.comparison-table td { padding:12px; } .actions button,.table-actions button { flex:1 1 100%; } .secondary-services { display:grid; gap:6px; } }
+
+/* Web-app shell: navigation stays available while the comparison work area changes. */
+.app-shell { min-height:100vh; display:grid; grid-template-columns:248px minmax(0,1fr); background:var(--workspace); }
+.app-sidebar { position:sticky; top:0; align-self:start; width:248px; min-height:100vh; border-right:1px solid var(--hairline); border-bottom:0; background:var(--canvas); backdrop-filter:none; }
+.app-sidebar .notion-nav-inner { width:100%; min-height:100vh; padding:20px 12px; display:flex; flex-direction:column; align-items:stretch; gap:24px; }
+.app-sidebar .wordmark { padding:0 8px; }
+.app-sidebar .notion-links { flex:0; display:grid; gap:4px; }
+.app-sidebar .notion-links button { width:100%; min-height:44px; padding:10px 12px; border-radius:6px; text-align:left; }
+.app-sidebar .notion-links button.active { color:var(--action-blue); background:#edf5ff; }
+.sidebar-note { margin:auto 8px 0; padding-top:16px; border-top:1px solid var(--hairline); color:var(--muted); font-size:12px; line-height:1.5; }
+.app-content { min-width:0; }
+.app-topbar { height:56px; padding:0 32px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--hairline); background:rgba(255,255,255,.92); color:var(--ink); font-size:14px; font-weight:600; }
+.app-status { color:var(--muted); font-size:12px; font-weight:400; }
+.app-content .view.active { min-height:calc(100vh - 56px); padding:40px clamp(24px,4vw,64px); }
+.app-content .section-head { max-width:1200px; }
+.app-content .service-grid { max-width:860px; }
+.app-content .service-panel { min-height:220px; }
+.app-eyebrow { margin:0 0 8px; color:var(--action-blue); font-size:14px; font-weight:600; }
+.app-content #categories { background:var(--workspace); }
+.app-content #categories .secondary-services { max-width:860px; }
+
+@media (max-width:900px) {
+  .app-shell { grid-template-columns:1fr; }
+  .app-sidebar { position:sticky; top:0; z-index:20; width:auto; min-height:auto; border-right:0; border-bottom:1px solid var(--hairline); }
+  .app-sidebar .notion-nav-inner { min-height:unset; padding:8px 16px; flex-direction:row; flex-wrap:wrap; gap:8px 16px; }
+  .app-sidebar .wordmark { flex:1; padding:0; }
+  .app-sidebar .notion-links { order:2; flex-basis:100%; display:flex; overflow-x:auto; }
+  .app-sidebar .notion-links button { width:auto; flex:0 0 auto; text-align:center; }
+  .sidebar-note { display:none; }
+  .app-topbar { height:48px; padding:0 16px; }
+  .app-content .view.active { min-height:calc(100vh - 152px); }
+}
+
+@media (max-width:640px) {
+  .app-sidebar .wordmark-subtitle { display:none; }
+  .app-sidebar .notion-links { justify-content:space-between; }
+  .app-sidebar .notion-links button { padding:8px 10px; font-size:13px; }
+  .app-topbar { display:none; }
+  .app-content .view.active { min-height:calc(100vh - 104px); padding:28px 16px; }
+  .app-content .service-grid { margin-top:20px; }
+  .app-content .service-panel { min-height:190px; }
+}
