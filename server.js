@@ -573,13 +573,11 @@ server.headersTimeout = 10_000;
 server.requestTimeout = 15_000;
 server.keepAliveTimeout = 5_000;
 
-if (require.main === module) {
-  loadLocalEnv().then(() => {
-    server.listen(port, () => {
-      console.log(`Bridge Youth is running at http://localhost:${port}`);
-    });
+loadLocalEnv().then(() => {
+  server.listen(port, () => {
+    console.log(`Bridge Youth is running at http://localhost:${port}`);
   });
-}
+});
 
 module.exports = server;
 

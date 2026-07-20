@@ -1,11 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/index.mjs": {
-      "includeFiles": "{index.html,app.js,styles.css,server.js,auth.js,database.js,supabase-credentials.js}"
+    "server.js": {
+      "includeFiles": "{index.html,app.js,styles.css,auth.js,database.js,supabase-credentials.js}"
     }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
-  ]
+  }
 }
