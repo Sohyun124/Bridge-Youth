@@ -16,7 +16,7 @@ async function removeEventsFile() {
 }
 
 async function startServer(env) {
-  const child = spawn(process.execPath, ["app-server.js"], {
+  const child = spawn(process.execPath, ["lib/app-server.cjs"], {
     cwd: rootDir,
     env: { ...process.env, ...env, SUPABASE_URL: "", SUPABASE_SECRET_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "", OPENAI_API_KEY: "" },
     stdio: ["ignore", "pipe", "pipe"],
