@@ -345,8 +345,14 @@
       <p class="auth-switch">계정이 없으신가요? <button type="button" class="text-link" data-auth-mode="signup">회원가입</button></p>
     </div>
     <div id="memberPanel" class="member-panel" hidden>
-      <h3>로그인되어 있어요</h3>
+      <h3>회원 정보</h3>
       <p id="memberGreeting" class="muted"></p>
+      <dl class="member-info">
+        <div><dt>닉네임</dt><dd id="memberNickname"></dd></div>
+        <div><dt>이메일</dt><dd id="memberEmail"></dd></div>
+        <div><dt>고유 회원 ID</dt><dd id="memberId"></dd></div>
+      </dl>
+      <p class="form-hint">고유 회원 ID는 계정마다 하나만 발급되며, 비교 정보 수정 시 이 계정을 기준으로 연결됩니다.</p>
       <button id="logoutButton" class="secondary" type="button">로그아웃</button>
     </div>
     <p id="authMessage" class="auth-message" aria-live="polite"></p>

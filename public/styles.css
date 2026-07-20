@@ -1120,3 +1120,8 @@ body.app-ready .splash-screen { opacity:0; visibility:hidden; pointer-events:non
 body:not(.authenticated) .app-sidebar,body:not(.authenticated) .app-topbar { display:none; }
 .member-panel { margin-top:20px; padding-top:20px; border-top:1px solid var(--hairline); }
 .member-panel p { margin:8px 0 16px; }
+.member-info { display:grid; gap:0; margin:16px 0; border-top:1px solid var(--hairline); border-bottom:1px solid var(--hairline); }
+.member-info div { display:grid; grid-template-columns:minmax(96px, 0.35fr) minmax(0, 1fr); gap:12px; padding:12px 0; border-bottom:1px solid var(--hairline); }
+.member-info div:last-child { border-bottom:0; }
+.member-info dt { color:var(--muted); font-size:14px; }
+.member-info dd { min-width:0; margin:0; color:var(--ink); overflow-wrap:anywhere; word-break:keep-all; }

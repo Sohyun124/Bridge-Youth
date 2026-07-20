@@ -78,6 +78,13 @@ Bridge Youth uses a Notion-inspired, information-first visual language: calm wor
 - Authentication forms validate each field before submission and show the error directly below that field. Do not put password rules or verification status only in a general toast.
 - Do not show comparison navigation, saved benefits, or stakeholder analytics to an unauthenticated user. After a successful login, enter the comparison home. Stakeholder-only analytics must remain unavailable both in the UI and through its API.
 
+## Membership Identity
+
+- The first screen is a brief centered Bridge Youth splash mark. After the splash, unauthenticated visitors enter the sign-up screen.
+- A member is one Supabase Auth user and one `member_profiles` record. The auth UUID is the immutable unique member ID; email is unique across member profiles.
+- Use the member nickname in greetings and navigation. Never substitute a generated member ID for a nickname in ordinary UI.
+- Email sign-up asks for a nickname. Google sign-in uses the profile name supplied by Google as the initial nickname.
+- The authenticated Member screen shows nickname, email, and unique member ID. Logging out always returns to the login form.
 ## Responsive Rules
 
 | Width | Behavior |

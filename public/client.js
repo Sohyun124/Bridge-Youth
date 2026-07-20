@@ -1,4 +1,4 @@
-window.setTimeout(() => document.body.classList.add("app-ready"), 700);
+window.setTimeout(() => document.body.classList.add("app-ready"), 1100);
 
 // Policies are populated only by the reviewed production policy API.
 let benefits = [];
@@ -1559,17 +1559,22 @@ function setAccountState(member) {
   const loginPanel = document.getElementById("loginPanel");
   const memberPanel = document.getElementById("memberPanel");
   const greeting = document.getElementById("memberGreeting");
+  const nickname = document.getElementById("memberNickname");
+  const email = document.getElementById("memberEmail");
+  const memberId = document.getElementById("memberId");
   document.body.classList.toggle("authenticated", Boolean(member));
   if (navigation) navigation.hidden = !member;
   if (dashboardLink) dashboardLink.hidden = !["staff", "admin"].includes(member?.role);
   if (memberPanel) memberPanel.hidden = !member;
-  if (greeting) greeting.textContent = member ? `${member.nickname}님, 혜택 비교를 계속할 수 있어요.` : "";
+  if (greeting) greeting.textContent = member ? `${member.nickname}님, 로그인되어 있어요.` : "";
+  if (nickname) nickname.textContent = member?.nickname || "";
+  if (email) email.textContent = member?.email || "";
+  if (memberId) memberId.textContent = member?.id || "";
   if (member) {
     if (signupPanel) signupPanel.hidden = true;
     if (loginPanel) loginPanel.hidden = true;
   }
 }
-
 async function refreshMember() {
   try {
     const response = await fetch("/api/auth/me", { credentials: "same-origin" });
@@ -1642,7 +1647,7 @@ document.getElementById("logoutButton").addEventListener("click", async () => {
   await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
   setAccountState(null);
   show("account");
-  showAuthMode("signup");
+  showAuthMode("login");
 });
 
 (async () => {
