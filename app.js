@@ -308,7 +308,6 @@ function syncConditionalInputs() {
   const area = document.getElementById("mobilityArea").value;
   const needsRouteInput = area === "지역 내 이동" || area === "지역 간 이동";
   const isCapitalArea = area === "서울 안" || area === "수도권 이동";
-  const isSeoulOnly = area === "서울 안";
   const isLongDistance = area === "지역 간 이동";
   document.getElementById("routeFields").hidden = !needsRouteInput;
   document.getElementById("plusTransitField").hidden = !isCapitalArea;
@@ -319,7 +318,6 @@ function syncConditionalInputs() {
     document.getElementById("destinationRegion").value = "";
   }
   if (!isCapitalArea) document.getElementById("usesPlusTransit").value = "no";
-  if (!isSeoulOnly) document.getElementById("bikeUsage").value = "no";
   if (!isLongDistance) document.getElementById("longDistanceUse").value = "no";
 }
 
@@ -337,7 +335,6 @@ function getAnalyticsProfile(profile) {
     routeType: profile.routeRegions?.length > 1 ? "cross-region" : "single-region",
     monthly15Rides: profile.monthly15Rides,
     usesPlusTransit: profile.usesPlusTransit,
-    bikeUsage: profile.bikeUsage,
     longDistanceUse: profile.longDistanceUse,
     incomeAnswered: Boolean(profile.income && profile.income !== "잘 모르겠어요"),
     housingAnswered: Boolean(profile.housing && profile.housing !== "잘 모르겠어요"),
@@ -425,14 +422,11 @@ async function compareTransport() {
   const needsRouteInput = mobilityArea === "지역 내 이동" || mobilityArea === "지역 간 이동";
   const monthly15Rides = document.getElementById("monthly15Rides").value;
   const usesPlusTransit = document.getElementById("usesPlusTransit").value;
-  const bikeUsage = document.getElementById("bikeUsage").value;
   const longDistanceUse = document.getElementById("longDistanceUse").value;
   const monthlyRideCount = monthly15Rides === "yes" ? 30 : monthly15Rides === "no" ? 10 : 0;
   const transportModes = ["subway", "city-bus"];
   if (usesPlusTransit === "yes") transportModes.push("metro-bus", "gtx");
-  if (bikeUsage !== "no") transportModes.push("ddareungi");
   if (longDistanceUse === "yes") transportModes.push("ktx");
-  const monthlyBikeCost = bikeUsage === "pass" ? 5000 : 0;
   const longDistanceTrips = longDistanceUse === "yes" ? 1 : 0;
   const previous = state.profile || {};
 
@@ -474,10 +468,8 @@ async function compareTransport() {
     routeRegions: needsRouteInput ? [...new Set([originRegion, destinationRegion])] : [previous.region].filter(Boolean),
     monthly15Rides,
     usesPlusTransit,
-    bikeUsage,
     longDistanceUse,
     longDistanceTrips,
-    monthlyBikeCost,
     transportModes,
     monthlyRideCount,
   };
@@ -568,7 +560,6 @@ function calculateBenefit(benefit) {
     transportModes: ["subway", "city-bus"],
   };
   const monthlyCost = Number(profile.monthlyTransitCost || 0);
-  const monthlyBikeCost = Number(profile.monthlyBikeCost || 0);
   const rides = Number(profile.monthlyRideCount || 0);
   const modes = profile.transportModes || ["subway", "city-bus"];
   const area = profile.mobilityArea || "서울 안";
@@ -583,7 +574,6 @@ function calculateBenefit(benefit) {
   const districtOk = !requiredDistrict || profile.district === requiredDistrict;
   const usesDailyTransit = modes.some((mode) => ["subway", "city-bus", "metro-bus", "gtx"].includes(mode));
   const usesLongDistance = modes.some((mode) => ["ktx", "intercity"].includes(mode)) || longDistanceTrips > 0 || area === "지역 간 이동";
-  const usesDdareungi = modes.includes("ddareungi");
   const usesPlusTransit = modes.some((mode) => ["metro-bus", "gtx"].includes(mode));
   const meetsRideMinimum = rides >= (benefit.minMonthlyRides || 0);
   const routeCoverageNeedsConfirmation = benefit.type === "fixed-pass" && routeRegions.some((region) => region !== "서울");
@@ -606,10 +596,10 @@ function calculateBenefit(benefit) {
   if (benefit.type === "fixed-pass") {
     const leavesSeoulCoverage = routeRegions.some((region) => region !== "서울");
     const areaOk = area === "서울 안" && !leavesSeoulCoverage && !modes.includes("metro-bus") && !usesLongDistance;
-    const passCost = benefit.passCost + (usesDdareungi ? benefit.ddareungiAddOn : 0);
-    estimatedSaving = areaOk ? Math.max(0, monthlyCost + monthlyBikeCost - passCost) : 0;
+    const passCost = benefit.passCost;
+    estimatedSaving = areaOk ? Math.max(0, monthlyCost - passCost) : 0;
     formula = areaOk
-      ? `서울 안 이동 기준, ${usesDdareungi ? "따릉이 포함 " : ""}30일권 ${formatWon(passCost)}와 월 이용료 비교`
+      ? `서울 안 이동 기준, 30일권 ${formatWon(passCost)}와 월 이용료 비교`
       : "서울 외 이동, 광역버스, 장거리 이동이 많으면 확인 필요";
   }
 
@@ -688,7 +678,6 @@ function calculateBenefit(benefit) {
     modes.includes("metro-bus") ? "광역버스 이용 고려" : null,
     modes.includes("gtx") ? "GTX 이용 고려" : null,
     routeCoverageNeedsConfirmation ? "경로 일부가 서울 밖이라 이용 범위 공식 확인 필요" : null,
-    usesDdareungi ? "따릉이 이용 고려" : null,
     usesLongDistance ? "장거리 이동 고려" : null,
     enrollment === "closed" ? "접수 종료 · 다음 모집 공식 확인 필요" : null,
   ];
@@ -1203,7 +1192,6 @@ if (state.profile) {
   document.getElementById("destinationRegion").value = state.profile.destinationRegion || "";
   document.getElementById("monthly15Rides").value = state.profile.monthly15Rides || "yes";
   document.getElementById("usesPlusTransit").value = state.profile.usesPlusTransit || "no";
-  document.getElementById("bikeUsage").value = state.profile.bikeUsage || "no";
   document.getElementById("longDistanceUse").value = state.profile.longDistanceUse || "no";
   document.getElementById("income").value = state.profile.income || "잘 모르겠어요";
   document.getElementById("housing").value = state.profile.housing || "잘 모르겠어요";
