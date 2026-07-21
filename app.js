@@ -238,17 +238,6 @@ function goBack(fallbackView = "categories") {
   show(previousView, "back_button", { fromBack: true });
 }
 
-function selectCategory(category) {
-  track("category_select", null, "category", { category });
-  if (category === "transport") {
-    show("transport");
-    return;
-  }
-  activeCategory = category;
-  show("categoryCompare");
-  renderCategoryComparison();
-}
-
 async function renderCategoryComparison() {
   const category = categoryBenefits[activeCategory];
   if (!category) return;
@@ -528,10 +517,6 @@ function formatPolicyDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "공식 확인 필요";
   return date.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
-}
-
-function getOfficialLinkLabel(benefit) {
-  return benefit.applicationUrl ? "공식 신청/가입" : "공식 안내 보기";
 }
 
 function sourceMetaLine(benefit) {
