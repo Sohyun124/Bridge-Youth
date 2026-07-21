@@ -538,12 +538,7 @@ function sourceMetaLine(benefit) {
   return `공식 출처: ${benefit.sourceName || benefit.provider} · 기준일 ${formatPolicyDate(benefit.sourcePublishedAt)} · 갱신일 ${formatPolicyDate(benefit.sourceUpdatedAt)}`;
 }
 
-function applicationPeriodLine(benefit) {
-  const period = benefit.applicationPeriod || {};
-  if (!period.kind) return "접수 기간: 현재 공식 확인 필요";
-  const fallback = period.kind === "ongoing" ? "상시" : period.kind === "scheduled" ? "기간 확인 필요" : "접수 종료";
-  return `접수 기간: ${period.label || fallback}`;
-}
+
 function getRouteLabel(profile) {
   const routeRegions = Array.isArray(profile?.routeRegions) ? profile.routeRegions.filter(Boolean) : [];
   if (routeRegions.length > 1) return `${routeRegions.join(" ↔ ")} 이동`;
