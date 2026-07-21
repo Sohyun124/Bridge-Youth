@@ -1,3 +1,3 @@
-const server = require("../server");
+const { requestHandler } = require('../server');
 
-module.exports = (request, response) => server.emit("request", request, response);
+module.exports = requestHandler;
