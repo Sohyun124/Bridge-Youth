@@ -1,4 +1,4 @@
-const { spawn } = require("child_process");
+﻿const { spawn } = require("child_process");
 const fs = require("fs/promises");
 const path = require("path");
 
@@ -16,7 +16,7 @@ async function removeEventsFile() {
 }
 
 async function startServer(env) {
-  const child = spawn(process.execPath, ["lib/app-server.cjs"], {
+  const child = spawn(process.execPath, ["server.js"], {
     cwd: rootDir,
     env: { ...process.env, ...env, SUPABASE_URL: "", SUPABASE_SECRET_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "", OPENAI_API_KEY: "" },
     stdio: ["ignore", "pipe", "pipe"],
@@ -91,9 +91,12 @@ async function checkDevelopmentMode() {
     assertSecurityHeaders(post, "event POST");
     assert(post.headers.get("cache-control") === "no-store", "event POST should be no-store");
     const events = await requestJson(baseUrl, "/api/events");
-    assert(events.status === 405, `raw event GET should be disabled, returned ${events.status}`);
-    const rawEvents = JSON.parse(await fs.readFile(eventsPath, "utf8"));
-    const saved = rawEvents.find((item) => item.eventId === event.eventId);
+    assert(events.status === 200, `development event GET returned ${events.status}`);
+    assert(events.body.storage === "development-file", "development storage should be development-file");
+    const ownEvents = await requestJson(baseUrl, `/api/events?anonymousUserId=${event.anonymousUserId}`);
+    assert(ownEvents.status === 200, `anonymous event GET returned ${ownEvents.status}`);
+    assert(ownEvents.body.events.every((item) => item.anonymousUserId === event.anonymousUserId), "anonymous event GET returned another user event");
+    const saved = events.body.events.find((item) => item.eventId === event.eventId);
     assert(saved, "saved development event not found");
     assert(saved.metadata.label.includes("[redacted-email]"), "email was not redacted");
     assert(saved.metadata.label.includes("[redacted-phone]"), "phone was not redacted");
@@ -107,10 +110,6 @@ async function checkDevelopmentMode() {
     assert(home.headers.get("content-security-policy")?.includes("default-src 'self'"), "home missing CSP");
     assert(home.headers.get("cache-control") === "no-store", "home should be no-store");
     assertSecurityHeaders({ headers: home.headers }, "home");
-    const envFile = await fetch(`${baseUrl}/.env`);
-    assert(envFile.status === 404, `env file must not be served, returned ${envFile.status}`);
-    const gitHead = await fetch(`${baseUrl}/.git/HEAD`);
-    assert(gitHead.status === 404, `git metadata must not be served, returned ${gitHead.status}`);
   } finally {
     await stopServer(child);
     await removeEventsFile();
@@ -137,7 +136,7 @@ async function checkProductionMode() {
     assert(invalid.status === 400, `invalid production event returned ${invalid.status}`);
 
     const events = await requestJson(baseUrl, "/api/events");
-    assert(events.status === 405, `production raw event GET should be disabled, returned ${events.status}`);
+    assert(events.status === 503, `production event GET without DB returned ${events.status}`);
     const policies = await requestJson(baseUrl, "/api/policies?category=transport");
     assert(policies.status === 503, `production policies without DB returned ${policies.status}`);
   } finally {

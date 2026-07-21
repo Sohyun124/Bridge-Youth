@@ -72,25 +72,8 @@ Bridge Youth uses a Notion-inspired, information-first visual language: calm wor
 
 - Inputs have a 1px hairline border, 8px radius, 44px minimum height, and visible label above the control.
 - Disabled controls use muted surface and retain a short explanation nearby.
-- Within one form grid, peer fields use equal column spans and a shared control height. Helper copy uses reserved space below its control; a longer label must not enlarge only that control.
 - Error copy appears directly below the field in plain Korean.
-- The unauthenticated default screen is the account flow. Start with sign-up, offer Google and email choices at equal visual weight, then show the email-login form only after sign-up submission or when the user explicitly selects it.
-- Authentication forms validate each field before submission and show the error directly below that field. Do not put password rules or verification status only in a general toast.
-- Do not show comparison navigation, saved benefits, or stakeholder analytics to an unauthenticated user. After a successful login, enter the comparison home. Stakeholder-only analytics must remain unavailable both in the UI and through its API.
 
-## Membership Identity
-
-- The first screen is a brief centered Bridge Youth splash mark. After the splash, unauthenticated visitors enter the sign-up screen.
-- A member is one Supabase Auth user and one `member_profiles` record. The auth UUID is the immutable unique member ID; email is unique across member profiles.
-- Use the member nickname in greetings and navigation. Never substitute a generated member ID for a nickname in ordinary UI.
-- Email sign-up asks for a nickname. Google sign-in uses the profile name supplied by Google as the initial nickname.
-- The authenticated Member screen shows nickname, email, and unique member ID. Logging out always returns to the login form.
-
-## Timed Detail Check
-
-- When a user has actively viewed one policy detail for 60 seconds, show one focused dialog asking whether any part was difficult.
-- The dialog has only two equal-weight choices: “예, 어려운 부분이 있어요” and “아니오, 괜찮아요”. Do not ask for free text in this timed interruption.
-- Record only anonymous policy ID, answer, and active-detail duration. Staff analytics may aggregate these answers; regular users must not see the analytics.
 ## Responsive Rules
 
 | Width | Behavior |
@@ -121,4 +104,3 @@ Bridge Youth uses a Notion-inspired, information-first interface. This replaces 
 - Comparison screens prioritize a readable summary table: policy/product, input-condition estimated benefit, key conditions, recommendation reason, and official source. Cards are only for the selected recommendation, cautions, and secondary actions.
 - Use system UI typography with 17px body text, 24–28px section headings, and 34–40px page headings. Do not use negative letter spacing or product-marketing headline treatments.
 - Preserve all safety language, official-source metadata, minimum 44px targets, and mobile accessibility. Long Korean, numeric values, URLs, table cells, and button labels must wrap without overflow or overlap.
-- Wrap UI copy at word boundaries only. Use word-break: keep-all; do not force character-by-character wrapping.

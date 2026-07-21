@@ -1,4 +1,4 @@
-window.setTimeout(() => document.body.classList.add("app-ready"), 1100);
+window.setTimeout(() => document.body.classList.add("app-ready"), 700);
 
 // Policies are populated only by the reviewed production policy API.
 let benefits = [];
@@ -41,11 +41,9 @@ const flowState = {
   comparisonId: sessionStorage.getItem("bridge-comparison-id") || null,
 };
 const serverLogState = { connected: false, loaded: false, storage: null };
-let currentMemberProfile = null;
 
 let detailReading = null;
 let detailSectionObserver = null;
-let detailDifficultyTimer = null;
 let transportForm = null;
 let savingForm = null;
 let toastTimer = null;
@@ -66,62 +64,8 @@ function addSectionTime(section) {
   delete detailReading.sectionStarts[section];
 }
 
-function clearDetailDifficultyTimer() {
-  if (!detailDifficultyTimer) return;
-  clearTimeout(detailDifficultyTimer);
-  detailDifficultyTimer = null;
-}
-
-function activeDetailReadingMs() {
-  if (!detailReading) return 0;
-  return detailReading.activeMs + (detailReading.isActive ? Date.now() - detailReading.activeStartedAt : 0);
-}
-
-function hideDetailDifficultyDialog() {
-  const dialog = document.getElementById("detailDifficultyDialog");
-  if (dialog) dialog.hidden = true;
-}
-
-function openDetailDifficultyDialog() {
-  if (!detailReading || detailReading.difficultyPromptShown) return;
-  detailReading.difficultyPromptShown = true;
-  pauseDetailReading();
-  track("detail_difficulty_prompt_view", detailReading.benefitId, "feedback", { durationSeconds: Math.floor(activeDetailReadingMs() / 1000) });
-  const dialog = document.getElementById("detailDifficultyDialog");
-  if (!dialog) return;
-  dialog.hidden = false;
-  dialog.querySelector('[data-response="yes"]')?.focus();
-}
-
-function scheduleDetailDifficultyPrompt() {
-  clearDetailDifficultyTimer();
-  if (!detailReading || !detailReading.isActive || detailReading.difficultyPromptShown) return;
-  const remaining = 60_000 - activeDetailReadingMs();
-  detailDifficultyTimer = setTimeout(() => {
-    detailDifficultyTimer = null;
-    if (!detailReading || !detailReading.isActive || detailReading.difficultyPromptShown) return;
-    if (activeDetailReadingMs() >= 60_000) openDetailDifficultyDialog();
-    else scheduleDetailDifficultyPrompt();
-  }, Math.max(100, remaining));
-}
-
-function submitDetailDifficultyResponse(response) {
-  if (!detailReading || detailReading.difficultyResponded) return;
-  detailReading.difficultyResponded = true;
-  const difficult = response === "yes";
-  track("detail_difficulty_response", detailReading.benefitId, "feedback", {
-    response: difficult ? "yes" : "no",
-    durationSeconds: Math.floor(activeDetailReadingMs() / 1000),
-    label: difficult ? "1분 이상 상세 열람 후 어려운 부분 있음" : "1분 이상 상세 열람 후 어려운 부분 없음",
-  });
-  hideDetailDifficultyDialog();
-  resumeDetailReading();
-  showToast(difficult ? "의견을 기록했어요. 안내를 개선하는 데 활용할게요." : "답변을 기록했어요.");
-}
-
 function pauseDetailReading() {
   if (!detailReading || !detailReading.isActive) return;
-  clearDetailDifficultyTimer();
   detailReading.activeMs += Date.now() - detailReading.activeStartedAt;
   Object.keys(detailReading.sectionStarts).forEach(addSectionTime);
   detailReading.isActive = false;
@@ -131,7 +75,6 @@ function resumeDetailReading() {
   if (!detailReading || detailReading.isActive || document.visibilityState === "hidden") return;
   detailReading.isActive = true;
   detailReading.activeStartedAt = Date.now();
-  scheduleDetailDifficultyPrompt();
 }
 
 function startDetailReading(benefitId) {
@@ -142,8 +85,6 @@ function startDetailReading(benefitId) {
     activeStartedAt: Date.now(),
     activeMs: 0,
     isActive: document.visibilityState !== "hidden",
-    difficultyPromptShown: false,
-    difficultyResponded: false,
     sectionStarts: {},
     sectionDurations: {},
     seenSections: new Set(),
@@ -151,24 +92,29 @@ function startDetailReading(benefitId) {
   };
 
   if ("IntersectionObserver" in window) {
-    detailSectionObserver = new IntersectionObserver((entries) => {
-      if (!detailReading) return;
-      entries.forEach((entry) => {
-        const section = entry.target.dataset.readingSection;
-        if (entry.isIntersecting) {
-          detailReading.seenSections.add(section);
-          if (detailReading.isActive && !detailReading.sectionStarts[section]) detailReading.sectionStarts[section] = Date.now();
-        } else addSectionTime(section);
-      });
-    }, { threshold: 0.55 });
+    detailSectionObserver = new IntersectionObserver(
+      (entries) => {
+        if (!detailReading) return;
+        entries.forEach((entry) => {
+          const section = entry.target.dataset.readingSection;
+          if (entry.isIntersecting) {
+            detailReading.seenSections.add(section);
+            if (detailReading.isActive && !detailReading.sectionStarts[section]) {
+              detailReading.sectionStarts[section] = Date.now();
+            }
+          } else {
+            addSectionTime(section);
+          }
+        });
+      },
+      { threshold: 0.55 }
+    );
     document.querySelectorAll("[data-reading-section]").forEach((section) => detailSectionObserver.observe(section));
   }
-  scheduleDetailDifficultyPrompt();
 }
+
 function finishDetailReading(exitAction) {
   if (!detailReading) return;
-  clearDetailDifficultyTimer();
-  hideDetailDifficultyDialog();
   pauseDetailReading();
   if (detailSectionObserver) {
     detailSectionObserver.disconnect();
@@ -222,7 +168,7 @@ function track(eventType, benefitId = null, step = "general", metadata = {}) {
 }
 
 async function saveEventToServer(event) {
-  if (window.location.protocol === "file:") return true;
+  if (window.location.protocol === "file:") return;
   try {
     const response = await fetch("/api/events", {
       method: "POST",
@@ -230,26 +176,29 @@ async function saveEventToServer(event) {
       body: JSON.stringify(event),
     });
     serverLogState.connected = response.ok;
-    return response.ok;
   } catch {
     serverLogState.connected = false;
-    return false;
   }
 }
+
 async function syncEventsWithServer() {
   if (window.location.protocol === "file:") return;
   try {
-    for (const event of state.logs) {
-      if (!await saveEventToServer(event)) throw new Error("Unable to save event");
-    }
+    for (const event of state.logs) await saveEventToServer(event);
+    const response = await fetch(`/api/events?anonymousUserId=${encodeURIComponent(anonymousUserId)}`);
+    if (!response.ok) throw new Error("Unable to load events");
+    const { events, storage } = await response.json();
+    state.logs = events;
+    localStorage.setItem("bridge-logs", JSON.stringify(state.logs));
     serverLogState.connected = true;
-    serverLogState.storage = "browser-and-server";
+    serverLogState.storage = storage;
     serverLogState.loaded = true;
     renderLogs();
   } catch {
     serverLogState.connected = false;
   }
 }
+
 async function loadPolicies() {
   try {
     const response = await fetch("/api/policies?category=transport");
@@ -265,8 +214,6 @@ async function loadPolicies() {
 }
 
 function show(view, detailExitAction = "navigation", options = {}) {
-  if (!currentMemberProfile && view !== "account") view = "account";
-  if (view === "logs" && !["staff", "admin"].includes(currentMemberProfile?.role)) view = "categories";
   const currentView = document.querySelector(".view.active")?.id;
   if (currentView && currentView !== view && !options.fromBack) viewHistory.push(currentView);
   if (view !== "detail" && detailReading) finishDetailReading(detailExitAction);
@@ -291,6 +238,16 @@ function goBack(fallbackView = "categories") {
   show(previousView, "back_button", { fromBack: true });
 }
 
+function selectCategory(category) {
+  track("category_select", null, "category", { category });
+  if (category === "transport") {
+    show("transport");
+    return;
+  }
+  activeCategory = category;
+  show("categoryCompare");
+  renderCategoryComparison();
+}
 
 async function renderCategoryComparison() {
   const category = categoryBenefits[activeCategory];
@@ -337,7 +294,7 @@ async function renderCategoryComparison() {
 function openCategoryBenefit(id) {
   const benefit = activeCategoryPolicies.find((item) => item.id === id);
   if (!benefit) return;
-  const targetUrl = id === "incheon-i-pass" ? "https://korea-pass.kr/info/intro_ic.do" : benefit.applicationUrl || benefit.sourceUrl;
+  const targetUrl = benefit.applicationUrl || benefit.sourceUrl;
   track("category_official_link_click", id, "apply", { category: activeCategory, sourceUrl: targetUrl });
   window.open(targetUrl, "_blank", "noopener,noreferrer");
 }
@@ -351,16 +308,18 @@ function syncCostInputState() {
 
 function syncConditionalInputs() {
   const area = document.getElementById("mobilityArea").value;
-  const needsRouteInput = area === "수도권 두 지역 이동" || area === "수도권 밖 지역으로 이동";
-  const isLongDistance = area === "수도권 밖 지역으로 이동";
+  const needsRouteInput = area === "지역 내 이동" || area === "지역 간 이동";
+  const isCapitalArea = area === "서울 안" || area === "수도권 이동";
+  const isLongDistance = area === "지역 간 이동";
   document.getElementById("routeFields").hidden = !needsRouteInput;
-  // 3천 원 이상 교통수단 여부는 전국 모두의 카드 일반형/플러스형 비교에 필요합니다.
-  document.getElementById("plusTransitField").hidden = false;
+  document.getElementById("plusTransitField").hidden = !isCapitalArea;
+  document.getElementById("bikeField").hidden = !isSeoulOnly;
   document.getElementById("railField").hidden = !isLongDistance;
   if (!needsRouteInput) {
     document.getElementById("originRegion").value = "";
     document.getElementById("destinationRegion").value = "";
   }
+  if (!isCapitalArea) document.getElementById("usesPlusTransit").value = "no";
   if (!isLongDistance) document.getElementById("longDistanceUse").value = "no";
 }
 
@@ -462,10 +421,10 @@ async function compareTransport() {
   const mobilityArea = document.getElementById("mobilityArea").value;
   const originRegion = document.getElementById("originRegion").value;
   const destinationRegion = document.getElementById("destinationRegion").value;
-  const needsRouteInput = mobilityArea === "수도권 두 지역 이동" || mobilityArea === "수도권 밖 지역으로 이동";
+  const needsRouteInput = mobilityArea === "지역 내 이동" || mobilityArea === "지역 간 이동";
   const monthly15Rides = document.getElementById("monthly15Rides").value;
-  const usesPlusTransit = "no";
-  const longDistanceUse = "no";
+  const usesPlusTransit = document.getElementById("usesPlusTransit").value;
+  const longDistanceUse = document.getElementById("longDistanceUse").value;
   const monthlyRideCount = monthly15Rides === "yes" ? 30 : monthly15Rides === "no" ? 10 : 0;
   const transportModes = ["subway", "city-bus"];
   if (usesPlusTransit === "yes") transportModes.push("metro-bus", "gtx");
@@ -484,10 +443,6 @@ async function compareTransport() {
   }
   if (needsRouteInput && (!originRegion || !destinationRegion)) {
     showToast("주로 출발하는 권역과 도착하는 권역을 모두 선택해 주세요.");
-    return;
-  }
-  if (needsRouteInput && originRegion === destinationRegion) {
-    showToast("서로 다른 권역을 선택하거나 ‘한 지역 안에서 이동’을 선택해 주세요.");
     return;
   }
 
@@ -575,24 +530,19 @@ function formatPolicyDate(value) {
   return date.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
 }
 
-
-function sourceMetaLine(benefit) {
-  const base = `공식 출처: ${benefit.sourceName || benefit.provider} · 기준일 ${formatPolicyDate(benefit.sourcePublishedAt)} · 검증일 ${formatPolicyDate(benefit.sourceUpdatedAt)}`;
-  if (!benefit.sourceOriginalUpdatedAt) return base;
-  const operation = benefit.currentOperationVerifiedAt
-    ? ` · 원문 갱신 ${formatPolicyDate(benefit.sourceOriginalUpdatedAt)} · 현재 운영 ${formatPolicyDate(benefit.currentOperationVerifiedAt)} 공식 재확인`
-    : ` · 원문 갱신 ${formatPolicyDate(benefit.sourceOriginalUpdatedAt)}`;
-  return `${base}${operation}`;
+function getOfficialLinkLabel(benefit) {
+  return benefit.applicationUrl ? "공식 신청/가입" : "공식 안내 보기";
 }
 
-function getTransportCoverageLine(benefit) {
-  if (benefit.id === "climate-card") {
-    return "이용 범위: 서울 지역 지하철·서울 면허 시내/마을버스 중심 · 제외: 신분당선, GTX, 광역·공항버스, 서울 외 면허 버스";
-  }
-  if (benefit.programFamily === "k-pass-family" || benefit.type === "all-pass") {
-    return "이용 범위: 시내·마을·광역버스, 지하철, GTX, 신분당선 · 제외: KTX·SRT, 항공, 선박 등";
-  }
-  return "이용 범위와 제외 교통수단은 공식 안내에서 확인 필요";
+function sourceMetaLine(benefit) {
+  return `공식 출처: ${benefit.sourceName || benefit.provider} · 기준일 ${formatPolicyDate(benefit.sourcePublishedAt)} · 갱신일 ${formatPolicyDate(benefit.sourceUpdatedAt)}`;
+}
+
+function applicationPeriodLine(benefit) {
+  const period = benefit.applicationPeriod || {};
+  if (!period.kind) return "접수 기간: 현재 공식 확인 필요";
+  const fallback = period.kind === "ongoing" ? "상시" : period.kind === "scheduled" ? "기간 확인 필요" : "접수 종료";
+  return `접수 기간: ${period.label || fallback}`;
 }
 function getRouteLabel(profile) {
   const routeRegions = Array.isArray(profile?.routeRegions) ? profile.routeRegions.filter(Boolean) : [];
@@ -606,7 +556,7 @@ function calculateBenefit(benefit) {
     age: 22,
     region: "서울",
     monthlyTransitCost: 75000,
-    mobilityArea: "한 지역 안에서 이동",
+    mobilityArea: "서울 안",
     mobilityFrequency: "daily",
     longDistanceTrips: 0,
     transportModes: ["subway", "city-bus"],
@@ -614,7 +564,7 @@ function calculateBenefit(benefit) {
   const monthlyCost = Number(profile.monthlyTransitCost || 0);
   const rides = Number(profile.monthlyRideCount || 0);
   const modes = profile.transportModes || ["subway", "city-bus"];
-  const area = profile.mobilityArea || "한 지역 안에서 이동";
+  const area = profile.mobilityArea || "서울 안";
   const routeRegions = Array.isArray(profile.routeRegions) && profile.routeRegions.length
     ? profile.routeRegions.filter(Boolean)
     : [profile.region].filter(Boolean);
@@ -625,26 +575,29 @@ function calculateBenefit(benefit) {
   const requiredDistrict = typeof benefit.requiredDistrict === "string" ? benefit.requiredDistrict : "";
   const districtOk = !requiredDistrict || profile.district === requiredDistrict;
   const usesDailyTransit = modes.some((mode) => ["subway", "city-bus", "metro-bus", "gtx"].includes(mode));
-  const usesLongDistance = modes.some((mode) => ["ktx", "intercity"].includes(mode)) || longDistanceTrips > 0 || area === "수도권 밖 지역으로 이동";
+  const usesLongDistance = modes.some((mode) => ["ktx", "intercity"].includes(mode)) || longDistanceTrips > 0 || area === "지역 간 이동";
   const usesPlusTransit = modes.some((mode) => ["metro-bus", "gtx"].includes(mode));
   const meetsRideMinimum = rides >= (benefit.minMonthlyRides || 0);
   const routeCoverageNeedsConfirmation = benefit.type === "fixed-pass" && routeRegions.some((region) => region !== "서울");
+  const replacedByRegionalPass = benefit.id === "k-pass" && ["경기", "인천"].includes(profile.region);
 
   let estimatedSaving = 0;
   let formula = "";
 
   if (benefit.type === "refund") {
-    estimatedSaving = usesDailyTransit && meetsRideMinimum ? monthlyCost * benefit.refundRate : 0;
+    estimatedSaving = usesDailyTransit && meetsRideMinimum && !replacedByRegionalPass ? monthlyCost * benefit.refundRate : 0;
     if (benefit.maxMonthlyBenefit) estimatedSaving = Math.min(estimatedSaving, benefit.maxMonthlyBenefit);
     const refundPercent = Math.round((benefit.refundRate || 0) * 100);
-    formula = meetsRideMinimum
+    formula = replacedByRegionalPass
+      ? "거주지 연계 K-패스의 추가 혜택 적용 여부를 공식 기관에서 확인 필요"
+      : meetsRideMinimum
         ? `월 ${rides}회 이용 기준, 교통비 ${formatWon(monthlyCost)}의 약 ${refundPercent}% 환급 예상`
         : `월 ${benefit.minMonthlyRides}회 이상 이용해야 환급 가능`;
   }
 
   if (benefit.type === "fixed-pass") {
     const leavesSeoulCoverage = routeRegions.some((region) => region !== "서울");
-    const areaOk = profile.region === "서울" && routeRegions.length === 1 && !leavesSeoulCoverage && !modes.includes("metro-bus") && !usesLongDistance;
+    const areaOk = area === "서울 안" && !leavesSeoulCoverage && !modes.includes("metro-bus") && !usesLongDistance;
     const passCost = benefit.passCost;
     estimatedSaving = areaOk ? Math.max(0, monthlyCost - passCost) : 0;
     formula = areaOk
@@ -670,12 +623,9 @@ function calculateBenefit(benefit) {
     const threshold = usesPlusTransit
       ? (isCapitalArea ? benefit.capitalPlusThreshold : benefit.localPlusThreshold)
       : (isCapitalArea ? benefit.capitalRegularThreshold : benefit.localRegularThreshold);
-    const refundEstimate = monthlyCost * benefit.refundRate;
-    const capRefundEstimate = Math.max(0, monthlyCost - threshold);
-    estimatedSaving = usesDailyTransit && meetsRideMinimum ? Math.max(refundEstimate, capRefundEstimate) : 0;
-    const refundPercent = Math.round((benefit.refundRate || 0) * 100);
+    estimatedSaving = usesDailyTransit && meetsRideMinimum ? Math.max(0, monthlyCost - threshold) : 0;
     formula = meetsRideMinimum
-      ? `${usesPlusTransit ? "플러스형" : "일반형"} 기준: ${refundPercent}% 환급과 ${formatWon(threshold)} 초과분 환급 중 더 큰 금액을 공식 시스템이 자동 적용`
+      ? `${usesPlusTransit ? "플러스형" : "일반형"} 기준 ${formatWon(threshold)} 초과 교통비 환급 예상`
       : `월 ${benefit.minMonthlyRides}회 이상 이용해야 비교 가능`;
   }
 
@@ -700,7 +650,8 @@ function calculateBenefit(benefit) {
   if (!ageOk || !regionOk || !districtOk) estimatedSaving = 0;
 
   let confidence = "낮음";
-  if (routeRelevant && !regionOk && benefit.region !== "전국") confidence = "거주 조건 공식 확인 필요";
+  if (replacedByRegionalPass) confidence = "거주지 연계 패스로 확인";
+  else if (routeRelevant && !regionOk && benefit.region !== "전국") confidence = "거주 조건 공식 확인 필요";
   else if (routeCoverageNeedsConfirmation) confidence = "이용 범위 공식 확인 필요";
   else if (benefit.type === "long-distance" && ageOk && usesLongDistance) confidence = "예매 시 확인";
   else if (ageOk && regionOk && !districtOk) confidence = "확인 필요";
@@ -724,7 +675,7 @@ function calculateBenefit(benefit) {
     regionOk ? "주민등록상 거주 조건 일치" : `${benefit.region} 거주지 조건 공식 확인 필요`,
     requiredDistrict ? (districtOk ? `${requiredDistrict} 거주 조건 일치` : `${requiredDistrict} 거주 여부 공식 확인 필요`) : null,
     benefit.minMonthlyRides && !meetsRideMinimum ? `월 ${benefit.minMonthlyRides}회 이상 이용 필요` : null,
-    benefit.programFamily === "k-pass-family" ? "K-패스 계열 정책은 별도 중복 적립되지 않음" : null,
+    replacedByRegionalPass ? "K-패스와 중복 지급되지 않음" : null,
     rides >= 40 ? "이동 빈도가 높음" : "이동 빈도 보통",
     modes.includes("metro-bus") ? "광역버스 이용 고려" : null,
     modes.includes("gtx") ? "GTX 이용 고려" : null,
@@ -753,14 +704,6 @@ function getComparedBenefits() {
     : [profile.region].filter(Boolean);
   return benefits
     .filter((benefit) => benefit.region === "전국" || benefit.region === profile.region || routeRegions.includes(benefit.region))
-    // 모두의 카드(K-패스)는 별도 선택 조건이 아니라 자격 조건 충족 시 자동 포함합니다.
-    .filter((benefit) => {
-      if (benefit.id !== "k-pass") return true;
-      const ageOk = Number(profile.age) >= Number(benefit.minAge) && Number(profile.age) <= Number(benefit.maxAge);
-      const regionOk = benefit.region === "전국" || benefit.region === profile.region;
-      const ridesOk = Number(profile.monthlyRideCount || 0) >= Number(benefit.minMonthlyRides || 0);
-      return ageOk && regionOk && ridesOk;
-    })
     .map(calculateBenefit)
     .sort((a, b) => b.estimatedSaving - a.estimatedSaving);
 }
@@ -805,7 +748,6 @@ function renderTransportCardHome() {
       <p class="saving">${getBenefitValueLabel(best)}</p>
       <p class="muted">${best.reason}</p>
       <p>${best.summary}</p>
-      <p class="muted">${getTransportCoverageLine(best)}</p>
       <p class="muted">${sourceMetaLine(best)}</p>
       <p class="muted">${applicationPeriodLine(best)}</p>
       <div class="actions">
@@ -824,7 +766,6 @@ function renderTransportCardHome() {
           <p class="saving">${getBenefitValueLabel(benefit)}</p>
           <p class="muted">${benefit.formula}</p>
           <p>${benefit.reason}</p>
-          <p class="muted">${getTransportCoverageLine(benefit)}</p>
           <p class="muted">${sourceMetaLine(benefit)}</p>
           <p class="muted">${applicationPeriodLine(benefit)}</p>
           <div class="actions">
@@ -869,7 +810,6 @@ function openTransportDetail(id) {
       <p class="saving">${getBenefitValueLabel(benefit)}</p>
       <p>${benefit.reason}</p>
       <p class="muted">${benefit.formula}</p>
-      <p class="muted">${getTransportCoverageLine(benefit)}</p>
     </div>
     <div class="card" data-reading-section="추천 이유">
       <h3>공식 안내를 쉬운 말로</h3>
@@ -877,7 +817,6 @@ function openTransportDetail(id) {
       <button data-action="simple-explanation" data-benefit-id="${benefit.id}" data-target-id="simple-explanation-${benefit.id}" data-open-label="쉬운 설명 확인" data-close-label="쉬운 설명 닫기" aria-controls="simple-explanation-${benefit.id}" aria-expanded="false">쉬운 설명 확인</button>
       <div class="progressive-content" id="simple-explanation-${benefit.id}" hidden>
         <p>${benefit.summary}</p>
-        <p><b>${getTransportCoverageLine(benefit)}</b></p>
         <p><b>쉬운 말 설명</b>: 중복 수혜는 다른 지원과 같이 받을 수 있는지 확인하는 뜻이에요. 지역 제한은 해당 지역에 살거나 그 지역 대중교통을 이용해야 한다는 뜻이에요.</p>
         <p class="muted">${sourceMetaLine(benefit)}</p>
         <p class="muted">${applicationPeriodLine(benefit)}</p>
@@ -915,7 +854,7 @@ function openTransportDetail(id) {
 function openTransportApplyLink(id) {
   const benefit = benefits.find((item) => item.id === id);
   if (!benefit) return;
-  const targetUrl = id === "incheon-i-pass" ? "https://korea-pass.kr/info/intro_ic.do" : benefit.applicationUrl || benefit.sourceUrl;
+  const targetUrl = benefit.applicationUrl || benefit.sourceUrl;
   const elapsedSeconds = state.comparedAt ? Math.round((Date.now() - state.comparedAt) / 1000) : null;
   track("apply_link_click", id, "apply", { elapsedSeconds, sourceUrl: targetUrl });
   window.open(targetUrl, "_blank", "noopener,noreferrer");
@@ -928,12 +867,6 @@ function saveBenefit(id) {
   showToast("저장했어요. 저장/알림에서 다시 볼 수 있어요.");
 }
 
-function removeSavedBenefit(id) {
-  state.saved = state.saved.filter((savedId) => savedId !== id);
-  localStorage.setItem("bridge-saved", JSON.stringify(state.saved));
-  renderSaved();
-  showToast("저장한 혜택에서 삭제했어요.");
-}
 function submitFeedback(id, type) {
   const labels = {
     calculation: "예상 이득 계산이 헷갈려요",
@@ -1065,9 +998,6 @@ function renderLogs() {
   const simpleExplanationClicks = events.filter((event) => event.eventType === "simple_explanation_view");
   const documentsClicks = events.filter((event) => event.eventType === "documents_view");
   const feedbacks = events.filter((event) => event.eventType === "feedback_submit");
-  const timedDifficultyResponses = events.filter((event) => event.eventType === "detail_difficulty_response");
-  const timedDifficultyYes = timedDifficultyResponses.filter((event) => event.metadata.response === "yes").length;
-  const timedDifficultyNo = timedDifficultyResponses.filter((event) => event.metadata.response === "no").length;
   const averageReadingSeconds = detailExits.length
     ? detailExits.reduce((sum, event) => sum + Number(event.metadata.durationSeconds || 0), 0) / detailExits.length
     : 0;
@@ -1177,21 +1107,26 @@ function renderLogs() {
     feedbackTotals[label] = (feedbackTotals[label] || 0) + 1;
   });
   const feedbackRows = Object.entries(feedbackTotals).sort((a, b) => b[1] - a[1]);
-  const timedDifficultyRow = metricRow(
-    "1분 이상 상세 열람 응답",
-    `${timedDifficultyResponses.length}건`,
-    `어려움 있음 ${timedDifficultyYes}건 · 없음 ${timedDifficultyNo}건`
-  );
-  document.getElementById("feedbackMetrics").innerHTML = `${timedDifficultyRow}${feedbackRows.length
-    ? feedbackRows.map(([label, count]) => metricRow(label, `${count}건`)).join("")
-    : `<p class="muted">선택형 피드백은 아직 없어요.</p>`}`;
+  document.getElementById("feedbackMetrics").innerHTML = feedbackRows.length
+    ? feedbackRows.map(([label, count]) => metricRow(label, `${count}회`)).join("")
+    : `<p class="muted">아직 제출된 피드백이 없어요.</p>`;
 }
+
 async function clearLogs() {
   if (!window.confirm("이 브라우저에 저장된 이용 로그를 초기화할까요?")) return;
   state.logs = [];
   localStorage.setItem("bridge-logs", JSON.stringify(state.logs));
+  if (window.location.protocol !== "file:") {
+    try {
+      const response = await fetch("/api/events", { method: "DELETE" });
+      serverLogState.connected = response.ok;
+    } catch {
+      serverLogState.connected = false;
+    }
+  }
   renderLogs();
 }
+
 function toggleDetailSection(button, eventType) {
   const targetId = button.dataset.targetId;
   const content = targetId ? document.getElementById(targetId) : null;
@@ -1230,11 +1165,9 @@ document.addEventListener("click", (event) => {
     case "open-detail": openDetail(benefitId); break;
     case "save-benefit": saveBenefit(benefitId); break;
     case "official-link": openApplyLink(benefitId); break;
-    case "remove-saved": removeSavedBenefit(benefitId); break;
     case "simple-explanation": toggleDetailSection(button, "simple_explanation_view"); break;
     case "documents": toggleDetailSection(button, "documents_view"); break;
     case "feedback": submitFeedback(benefitId, button.dataset.feedbackType); break;
-    case "detail-difficulty-response": submitDetailDifficultyResponse(button.dataset.response); break;
     case "reminder": track("reminder_view", benefitId, "reminder"); break;
     case "clear-logs": clearLogs(); break;
     case "summarize-interest": summarizeInterest(); break;
@@ -1256,10 +1189,12 @@ if (state.profile) {
   const validCostRanges = ["40000", "60000", "85000", "110000", "direct"];
   document.getElementById("costRange").value = validCostRanges.includes(savedCostRange) ? savedCostRange : "direct";
   document.getElementById("monthlyTransitCost").value = state.profile.monthlyTransitCost || "";
-  document.getElementById("mobilityArea").value = state.profile.mobilityArea || "한 지역 안에서 이동";
+  document.getElementById("mobilityArea").value = state.profile.mobilityArea || "서울 안";
   document.getElementById("originRegion").value = state.profile.originRegion || "";
   document.getElementById("destinationRegion").value = state.profile.destinationRegion || "";
   document.getElementById("monthly15Rides").value = state.profile.monthly15Rides || "yes";
+  document.getElementById("usesPlusTransit").value = state.profile.usesPlusTransit || "no";
+  document.getElementById("longDistanceUse").value = state.profile.longDistanceUse || "no";
   document.getElementById("income").value = state.profile.income || "잘 모르겠어요";
   document.getElementById("housing").value = state.profile.housing || "잘 모르겠어요";
 }
@@ -1563,169 +1498,10 @@ function renderSaved() {
   const transport = getComparedBenefits();
   const saving = savingComparison?.policies || savingPolicies;
   const savedBenefits = [...transport, ...saving].filter((benefit, index, list) => state.saved.includes(benefit.id) && list.findIndex((item) => item.id === benefit.id) === index);
-  document.getElementById("savedList").innerHTML = savedBenefits.length ? savedBenefits.map((benefit) => `<article class="card"><span class="badge">저장한 정책</span><h3>${escapeMarkup(benefit.title)}</h3><p class="saving">${escapeMarkup(benefit.category === "saving" ? (benefit.governmentContributionMin === undefined ? "공식 상세에서 다시 계산" : savingValueLabel(benefit)) : getBenefitValueLabel(benefit))}</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p><div class="actions"><button data-action="open-detail" data-benefit-id="${escapeMarkup(benefit.id)}">상세</button><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button><button class="secondary" data-action="remove-saved" data-benefit-id="${escapeMarkup(benefit.id)}">저장 삭제</button></div></article>`).join("") : `<p class="muted">저장한 혜택이 없습니다.</p>`;
+  document.getElementById("savedList").innerHTML = savedBenefits.length ? savedBenefits.map((benefit) => `<article class="card"><span class="badge">저장한 정책</span><h3>${escapeMarkup(benefit.title)}</h3><p class="saving">${escapeMarkup(benefit.category === "saving" ? (benefit.governmentContributionMin === undefined ? "공식 상세에서 다시 계산" : savingValueLabel(benefit)) : getBenefitValueLabel(benefit))}</p><p class="muted">${escapeMarkup(sourceMetaLine(benefit))}</p><p class="muted">${escapeMarkup(applicationPeriodLine(benefit))}</p><div class="actions"><button data-action="open-detail" data-benefit-id="${escapeMarkup(benefit.id)}">상세</button><button data-action="official-link" data-benefit-id="${escapeMarkup(benefit.id)}">${escapeMarkup(getOfficialLinkLabel(benefit))}</button></div></article>`).join("") : `<p class="muted">저장한 혜택이 없습니다.</p>`;
 }
 
 document.getElementById("compareSaving").addEventListener("click", compareSaving);
 loadSavingPolicies().then(() => {
   if (document.getElementById("saved").classList.contains("active")) renderSaved();
 });
-
-function authError(id, message = "") {
-  const target = document.getElementById(id);
-  if (target) target.textContent = message;
-}
-
-function clearAuthErrors() {
-  document.querySelectorAll(".field-error").forEach((element) => { element.textContent = ""; });
-}
-
-function showAuthMode(mode) {
-  const signup = mode !== "login";
-  document.getElementById("signupPanel").hidden = !signup;
-  document.getElementById("loginPanel").hidden = signup;
-  document.getElementById("authMessage").textContent = "";
-  clearAuthErrors();
-  (signup ? document.getElementById("signupNickname") : document.getElementById("loginEmail")).focus();
-}
-
-function emailIsValid(value) {
-  return /^\S+@\S+\.\S+$/.test(value);
-}
-
-function passwordIsStrong(value) {
-  return value.length >= 8 && /[A-Za-z]/.test(value) && /\d/.test(value);
-}
-
-function validateSignup() {
-  clearAuthErrors();
-  const nickname = document.getElementById("signupNickname").value.trim();
-  const email = document.getElementById("signupEmail").value.trim();
-  const password = document.getElementById("signupPassword").value;
-  const confirm = document.getElementById("signupPasswordConfirm").value;
-  const consent = document.getElementById("signupConsent").checked;
-  let valid = true;
-  if (nickname.length < 2 || nickname.length > 40) { authError("signupNicknameError", "닉네임은 2자 이상 40자 이하로 입력하세요."); valid = false; }
-  if (!emailIsValid(email)) { authError("signupEmailError", "이메일 주소를 확인하세요."); valid = false; }
-  if (!passwordIsStrong(password)) { authError("signupPasswordError", "영문과 숫자를 포함해 8자 이상 입력하세요."); valid = false; }
-  if (password !== confirm) { authError("signupPasswordConfirmError", "비밀번호가 일치하지 않습니다."); valid = false; }
-  if (!consent) { authError("signupConsentError", "서비스 이용 및 개인정보 처리 안내에 동의해 주세요."); valid = false; }
-  return valid ? { nickname, email, password, consent } : null;
-}
-
-function validateLogin() {
-  clearAuthErrors();
-  const email = document.getElementById("loginEmail").value.trim();
-  const password = document.getElementById("loginPassword").value;
-  let valid = true;
-  if (!emailIsValid(email)) { authError("loginEmailError", "이메일 주소를 확인하세요."); valid = false; }
-  if (!password) { authError("loginPasswordError", "비밀번호를 입력하세요."); valid = false; }
-  return valid ? { email, password } : null;
-}
-
-function setAccountState(member) {
-  currentMemberProfile = member || null;
-  const navigation = document.getElementById("appNavigation");
-  const dashboardLink = document.getElementById("staffDashboardLink");
-  const signupPanel = document.getElementById("signupPanel");
-  const loginPanel = document.getElementById("loginPanel");
-  const memberPanel = document.getElementById("memberPanel");
-  const greeting = document.getElementById("memberGreeting");
-  const nickname = document.getElementById("memberNickname");
-  const email = document.getElementById("memberEmail");
-  const memberId = document.getElementById("memberId");
-  document.body.classList.toggle("authenticated", Boolean(member));
-  if (navigation) navigation.hidden = !member;
-  if (dashboardLink) dashboardLink.hidden = !["staff", "admin"].includes(member?.role);
-  if (memberPanel) memberPanel.hidden = !member;
-  if (greeting) greeting.textContent = member ? `${member.nickname}님, 로그인되어 있어요.` : "";
-  if (nickname) nickname.textContent = member?.nickname || "";
-  if (email) email.textContent = member?.email || "";
-  if (memberId) memberId.textContent = member?.id || "";
-  if (member) {
-    if (signupPanel) signupPanel.hidden = true;
-    if (loginPanel) loginPanel.hidden = true;
-  }
-}
-async function refreshMember() {
-  try {
-    const response = await fetch("/api/auth/me", { credentials: "same-origin" });
-    if (!response.ok) { setAccountState(null); return null; }
-    const { member } = await response.json();
-    setAccountState(member);
-    return member;
-  } catch {
-    setAccountState(null);
-    return null;
-  }
-}
-
-async function acceptOAuthSessionFromHash() {
-  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const accessToken = hash.get("access_token");
-  if (!accessToken) return false;
-  const response = await fetch("/api/auth/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ accessToken, expiresIn: hash.get("expires_in") }),
-  });
-  history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
-  if (!response.ok) {
-    document.getElementById("authMessage").textContent = "Google 로그인을 완료하지 못했습니다. 다시 시도해 주세요.";
-    return false;
-  }
-  const { member } = await response.json();
-  setAccountState(member);
-  show("categories");
-  return true;
-}
-
-async function submitSignup(event) {
-  event.preventDefault();
-  const payload = validateSignup();
-  if (!payload) return;
-  const response = await fetch("/api/auth/signup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-  if (!response.ok) {
-    document.getElementById("authMessage").textContent = "가입 요청을 처리하지 못했습니다. 입력 내용을 확인하거나 잠시 후 다시 시도해 주세요.";
-    return;
-  }
-  document.getElementById("authMessage").textContent = "인증 메일을 보냈습니다. 메일의 링크를 확인한 뒤 로그인하세요.";
-  showAuthMode("login");
-  document.getElementById("loginEmail").value = payload.email;
-}
-
-async function submitLogin(event) {
-  event.preventDefault();
-  const payload = validateLogin();
-  if (!payload) return;
-  const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(payload) });
-  if (!response.ok) {
-    document.getElementById("authMessage").textContent = "이메일 또는 비밀번호가 맞지 않거나, 이메일 인증이 아직 끝나지 않았습니다.";
-    return;
-  }
-  const member = await refreshMember();
-  if (!member) {
-    document.getElementById("authMessage").textContent = "로그인 정보를 확인하지 못했습니다. 다시 시도해 주세요.";
-    return;
-  }
-  show("categories");
-}
-
-document.querySelectorAll("[data-auth-mode]").forEach((button) => button.addEventListener("click", () => showAuthMode(button.dataset.authMode)));
-document.getElementById("signupForm").addEventListener("submit", submitSignup);
-document.getElementById("loginForm").addEventListener("submit", submitLogin);
-document.getElementById("logoutButton").addEventListener("click", async () => {
-  await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
-  setAccountState(null);
-  show("account");
-  showAuthMode("login");
-});
-
-(async () => {
-  const oauthHandled = await acceptOAuthSessionFromHash();
-  if (oauthHandled) return;
-  const member = await refreshMember();
-  if (member) show("categories");
-  else show("account");
-})();

@@ -1,8 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 
-const appSource = fs.readFileSync(path.join(__dirname, "..", "client.js"), "utf8");
-const serverSource = fs.readFileSync(path.join(__dirname, "..", "lib/app-server.cjs"), "utf8");
+const appSource = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
 const failures = [];
 
 const eventTypes = [
@@ -16,8 +16,6 @@ const eventTypes = [
   "benefit_save",
   "apply_link_click",
   "feedback_submit",
-  "detail_difficulty_prompt_view",
-  "detail_difficulty_response",
 ];
 for (const eventType of eventTypes) {
   if (!serverSource.includes(`"${eventType}"`)) failures.push(`Server does not allow ${eventType}`);

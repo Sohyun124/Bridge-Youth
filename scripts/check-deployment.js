@@ -1,4 +1,4 @@
-const baseUrl = (process.env.BRIDGE_BASE_URL || "http://localhost:4173").replace(/\/$/, "");
+﻿const baseUrl = (process.env.BRIDGE_BASE_URL || "http://localhost:4173").replace(/\/$/, "");
 
 function fail(message) {
   console.error(message);
@@ -51,8 +51,12 @@ async function main() {
   if (!Array.isArray(transport.policies) || transport.policies.length === 0) fail("No active official transport policies returned");
   transport.policies.forEach(requirePolicyFields);
 
-  const rawEvents = await getJson("/api/events", 405);
-  if (!/method not allowed/i.test(rawEvents.error || "")) fail("Raw event reads must be disabled");
+  const unscopedEvents = await getJson("/api/events", 400);
+  if (!/anonymousUserId/i.test(unscopedEvents.error || "")) fail("Unscoped raw event reads must be rejected");
+  const events = await getJson("/api/events?anonymousUserId=anon_deploymentcheck");
+  if (events.storage !== "database") fail("Events API is not backed by database storage");
+  if (!Array.isArray(events.events)) fail("Events API did not return an events array");
+
   const categoryChecks = await Promise.all(["housing", "education", "saving"].map((category) => getJson(`/api/policies?category=${category}`)));
   categoryChecks.forEach((result, index) => {
     const category = ["housing", "education", "saving"][index];
