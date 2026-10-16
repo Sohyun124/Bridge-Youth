@@ -2,7 +2,7 @@
 const path = require("path");
 
 const migration = fs.readFileSync(path.join(__dirname, "..", "supabase", "migrations", "202607180001_create_bridge_youth_tables.sql"), "utf8");
-const server = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
+const server = fs.readFileSync(path.join(__dirname, "..", "server", "server.js"), "utf8");
 const failures = [];
 
 function extractServerSet(name) {

@@ -4,7 +4,7 @@ const {
   createPolicySyncRun,
   databaseConfigured,
   upsertPolicies,
-} = require("../database");
+} = require("../server/database");
 
 const endpoint = process.env.YOUTH_POLICY_API_URL || "https://www.youthcenter.go.kr/opi/youthPlcyList.do";
 const apiKey = process.env.YOUTH_POLICY_API_KEY;

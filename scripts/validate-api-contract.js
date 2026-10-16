@@ -1,6 +1,6 @@
 ﻿const fs = require("fs");
 const path = require("path");
-const { isPolicyStructurallyUsable, policyRowToClientPolicy } = require("../database");
+const { isPolicyStructurallyUsable, policyRowToClientPolicy } = require("../server/database");
 
 const mockRow = {
   id: "contract-policy",
@@ -84,7 +84,7 @@ const reviewOnlyRow = {
 };
 if (isPolicyStructurallyUsable(reviewOnlyRow)) failures.push("Review-only policy text must not be structurally usable for active results");
 
-const appSource = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+const appSource = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
 if (/benefit\.docs\b/.test(appSource)) failures.push("app.js still references benefit.docs");
 if (!appSource.includes('function sourceMetaLine')) failures.push('app.js must centralize official source/basis/update display');
 if (!appSource.includes('기준일') || !appSource.includes('갱신일')) failures.push('app.js must display source basis and update dates');

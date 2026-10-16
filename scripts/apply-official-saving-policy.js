@@ -11,7 +11,7 @@ try {
   if (error.code !== "ENOENT") throw error;
 }
 
-const { upsertPolicies } = require("../database");
+const { upsertPolicies } = require("../server/database");
 
 const policy = {
   id: "youth-future-savings-2026-scheduled",

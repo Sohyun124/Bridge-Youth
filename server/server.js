@@ -3,7 +3,8 @@ const fs = require("fs/promises");
 const path = require("path");
 const { checkDatabaseReadiness, databaseConfigured, insertJourneyEvent, listActivePolicies, listJourneyEvents, purgeJourneyEventsBefore } = require("./database");
 
-const rootDir = __dirname;
+const rootDir = path.join(__dirname, "..");
+const publicDir = path.join(rootDir, "public");
 const dataDir = path.join(rootDir, "data");
 const eventsPath = path.join(dataDir, "events.json");
 const port = Number(process.env.PORT || 4173);
@@ -415,8 +416,8 @@ async function handleApi(request, response, pathname) {
 
 async function serveStatic(response, pathname) {
   const relativePath = pathname === "/" ? "index.html" : decodeURIComponent(pathname).replace(/^\/+/, "");
-  const filePath = path.resolve(rootDir, relativePath);
-  if (!filePath.startsWith(rootDir)) {
+  const filePath = path.resolve(publicDir, relativePath);
+  if (!filePath.startsWith(publicDir)) {
     response.writeHead(403, securityHeaders({ "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }));
     response.end("Forbidden");
     return;
